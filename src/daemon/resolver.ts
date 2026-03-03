@@ -62,8 +62,8 @@ function buildMultiSessionActivity(
   }
 
   const state = formatStatsLine(sessions, now);
-  const dominantMode = detectDominantMode(sessions);
-  const smallImageKey = dominantMode === 'mixed' ? 'multi-session' : dominantMode;
+  const mostRecent = getMostRecentSession(sessions)!;
+  const smallImageKey = mostRecent.smallImageKey;
   const smallImageText = stablePick(preset.multiSessionTooltips, seed + 1, now);
 
   return {

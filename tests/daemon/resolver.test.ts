@@ -199,24 +199,34 @@ describe('resolvePresence', () => {
       expect(activity.state).toContain('2h 15m deep');
     });
 
-    it('uses dominant mode for smallImageKey', () => {
+    it('uses most recent session smallImageKey', () => {
       const sessions = [
-        makeSession({ sessionId: 's1', activityCounts: makeCounts({ edits: 20 }) }),
-        makeSession({ sessionId: 's2', activityCounts: makeCounts({ edits: 10 }) }),
+        makeSession({ sessionId: 's1', smallImageKey: 'terminal', lastActivityAt: 1000 }),
+        makeSession({ sessionId: 's2', smallImageKey: 'thinking', lastActivityAt: 3000 }),
+      ];
+      const activity = resolvePresence(sessions, genZPreset, now)!;
+
+      expect(activity.smallImageKey).toBe('thinking');
+    });
+
+    it('prefers active session smallImageKey over idle', () => {
+      const sessions = [
+        makeSession({
+          sessionId: 's1',
+          smallImageKey: 'coding',
+          lastActivityAt: 1000,
+          status: 'active',
+        }),
+        makeSession({
+          sessionId: 's2',
+          smallImageKey: 'searching',
+          lastActivityAt: 3000,
+          status: 'idle',
+        }),
       ];
       const activity = resolvePresence(sessions, genZPreset, now)!;
 
       expect(activity.smallImageKey).toBe('coding');
-    });
-
-    it('uses multi-session icon for mixed mode', () => {
-      const sessions = [
-        makeSession({ sessionId: 's1', activityCounts: makeCounts({ edits: 5, commands: 5 }) }),
-        makeSession({ sessionId: 's2', activityCounts: makeCounts({ searches: 5, thinks: 5 }) }),
-      ];
-      const activity = resolvePresence(sessions, genZPreset, now)!;
-
-      expect(activity.smallImageKey).toBe('multi-session');
     });
 
     it('picks tooltip from pool', () => {
