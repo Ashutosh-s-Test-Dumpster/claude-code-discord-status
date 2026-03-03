@@ -126,7 +126,6 @@ describe('HTTP API', () => {
       const res = await post('/sessions/test-session-2/activity', {
         details: 'Editing test.ts',
         smallImageKey: 'coding',
-        priority: 'hook',
       });
       expect(res.status).toBe(200);
 

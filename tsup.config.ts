@@ -14,7 +14,7 @@ export default defineConfig([
     sourcemap: true,
     clean: true,
     dts: false,
-    external: ['@xhayper/discord-rpc', '@modelcontextprotocol/sdk', 'zod'],
+    external: ['@xhayper/discord-rpc', 'zod'],
     banner: {
       js: '#!/usr/bin/env node',
     },
@@ -23,7 +23,6 @@ export default defineConfig([
   {
     entry: {
       'daemon/index': 'src/daemon/index.ts',
-      'mcp/index': 'src/mcp/index.ts',
     },
     format: ['esm'],
     target: 'node18',
@@ -32,7 +31,7 @@ export default defineConfig([
     sourcemap: true,
     clean: false,
     dts: false,
-    external: ['@xhayper/discord-rpc', '@modelcontextprotocol/sdk', 'zod'],
+    external: ['@xhayper/discord-rpc', 'zod'],
     define,
   },
 ]);

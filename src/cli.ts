@@ -379,36 +379,6 @@ async function setup(): Promise<void> {
 
   // --- Installation ---
 
-  // Check if claude CLI exists
-  let hasClaude = false;
-  try {
-    execSync('which claude', { stdio: 'pipe' });
-    hasClaude = true;
-  } catch {
-    // claude CLI not found
-  }
-
-  const mcpPath = resolve(__dirname, 'mcp', 'index.js');
-
-  if (hasClaude) {
-    try {
-      execSync(`claude mcp add --transport stdio --scope user discord-status -- node ${mcpPath}`, {
-        stdio: 'pipe',
-      });
-      p.log.success('MCP server registered');
-    } catch {
-      p.log.warn('Could not register MCP server automatically.');
-      p.log.info(
-        `  Run: claude mcp add --transport stdio --scope user discord-status -- node ${mcpPath}`,
-      );
-    }
-  } else {
-    p.log.warn('claude CLI not found — skipping MCP registration.');
-    p.log.info(
-      `  Run: claude mcp add --transport stdio --scope user discord-status -- node ${mcpPath}`,
-    );
-  }
-
   // Merge hooks into ~/.claude/settings.json
   const hookScriptPath = resolve(__dirname, '..', 'src', 'hooks', 'claude-hook.sh');
   const hookCommand = existsSync(hookScriptPath) ? hookScriptPath : 'claude-hook.sh';
@@ -548,7 +518,7 @@ async function uninstall(): Promise<void> {
   p.intro('claude-discord-status');
 
   const shouldContinue = await p.confirm({
-    message: 'This will remove all hooks, MCP registration, and config. Continue?',
+    message: 'This will remove all hooks and config. Continue?',
     initialValue: false,
   });
 
@@ -573,14 +543,6 @@ async function uninstall(): Promise<void> {
     }
   } else {
     p.log.info('Daemon was not running');
-  }
-
-  // Remove MCP server
-  try {
-    execSync('claude mcp remove discord-status', { stdio: 'pipe' });
-    p.log.success('MCP server removed');
-  } catch {
-    p.log.warn('Could not remove MCP server (may not have been registered)');
   }
 
   // Remove hooks from settings
@@ -636,7 +598,7 @@ function showHelp(): void {
       'stop         Stop the daemon',
       'status       Show daemon status and sessions',
       'update       Update to the latest version',
-      'uninstall    Remove all hooks, MCP, and config',
+      'uninstall    Remove all hooks and config',
     ].join('\n'),
     'Commands',
   );

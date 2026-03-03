@@ -4,17 +4,17 @@
 
 Discord Rich Presence integration for Claude Code. Shows what Claude is doing as a live activity card on Discord.
 
-Three components: a **daemon** (background process holding the Discord RPC connection), **hooks** (bash scripts fired by Claude Code lifecycle events), and an **MCP server** (tool Claude can call to set custom status messages).
+Two components: a **daemon** (background process holding the Discord RPC connection) and **hooks** (bash scripts fired by Claude Code lifecycle events).
 
 ## Tech Stack
 
 - **Runtime**: Node.js >= 18
 - **Language**: TypeScript (strict mode, ES2022, NodeNext modules)
-- **Build**: tsup (3 entry points: cli, daemon, mcp)
+- **Build**: tsup (2 entry points: cli, daemon)
 - **Test**: Vitest
 - **Lint**: ESLint (typescript-eslint recommended)
 - **Format**: Prettier
-- **Dependencies**: `@xhayper/discord-rpc`, `@modelcontextprotocol/sdk`, `zod`
+- **Dependencies**: `@xhayper/discord-rpc`, `zod`
 
 ## Commands
 
@@ -41,8 +41,6 @@ src/
 │   ├── sessions.ts        # SessionRegistry — in-memory session store
 │   ├── resolver.ts        # Presence resolver — turns sessions into Discord activity
 │   └── discord.ts         # Discord RPC wrapper with auto-reconnect
-├── mcp/
-│   └── index.ts           # MCP stdio server — set_discord_status tool
 ├── hooks/
 │   └── claude-hook.sh     # Bash hook script — maps lifecycle events to HTTP POSTs
 └── shared/
@@ -65,19 +63,16 @@ tests/
 
 ```
 Claude Code → Hook (bash) → HTTP POST → Daemon → Discord RPC
-Claude Code → MCP tool call → HTTP POST → Daemon → Discord RPC
 ```
 
 1. **Hooks** fire on lifecycle events (SessionStart, PreToolUse, Stop, etc.) and POST to the daemon's HTTP API
-2. **MCP server** allows Claude to set a contextual status message — takes priority for 30 seconds over hook updates
-3. **Daemon** maintains a `SessionRegistry`, runs a `resolvePresence()` pass on every change, and pushes the result to Discord
+2. **Daemon** maintains a `SessionRegistry`, runs a `resolvePresence()` pass on every change, and pushes the result to Discord
 
 ### Key Concepts
 
 - **Session**: One Claude Code instance. Tracked by session ID, has a project path, PID, activity counters, and current status
 - **ActivityCounts**: Per-session counters (edits, commands, searches, reads, thinks) incremented based on `smallImageKey`
-- **MCP Priority Window**: 30-second window after an MCP update where hook updates are suppressed (so Claude's self-authored messages persist)
-- **Session Deduplication**: `/sessions/:id/start` deduplicates by `projectPath + pid` to prevent the hook and MCP from the same Claude instance registering twice
+- **Session Deduplication**: `/sessions/:id/start` deduplicates by `projectPath + pid` to avoid duplicate sessions from the same Claude instance
 
 ### Single vs Multi-Session
 
@@ -127,7 +122,7 @@ All endpoints on `127.0.0.1:{port}`:
 - `GET /health` — `{ connected, sessions, uptime }`
 - `GET /sessions` — Array of all sessions
 - `POST /sessions/:id/start` — `{ pid, projectPath }` → 201 (or 200 if deduped)
-- `POST /sessions/:id/activity` — `{ details?, smallImageKey?, smallImageText?, priority? }`
+- `POST /sessions/:id/activity` — `{ details?, smallImageKey?, smallImageText? }`
 - `POST /sessions/:id/end` — Removes session
 
 ### Config Precedence

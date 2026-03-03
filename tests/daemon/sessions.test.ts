@@ -40,7 +40,6 @@ describe('SessionRegistry', () => {
         details: 'Editing file.ts',
         smallImageKey: 'coding',
         smallImageText: 'Writing code',
-        priority: 'hook',
       });
 
       expect(updated?.details).toBe('Editing file.ts');
@@ -60,7 +59,7 @@ describe('SessionRegistry', () => {
       // Manually set idle for testing
       Object.assign(session, { status: 'idle' });
 
-      registry.updateActivity('s1', { details: 'Working', priority: 'hook' });
+      registry.updateActivity('s1', { details: 'Working' });
 
       expect(registry.getSession('s1')?.status).toBe('active');
     });
@@ -71,53 +70,9 @@ describe('SessionRegistry', () => {
       const onChange = vi.fn();
       registry.onChange(onChange);
 
-      registry.updateActivity('s1', { details: 'test', priority: 'hook' });
+      registry.updateActivity('s1', { details: 'test' });
 
       expect(onChange).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe('MCP priority window', () => {
-    it('suppresses hook updates within 30s of MCP update', () => {
-      registry.startSession('s1', { pid: process.pid, projectPath: '/tmp/project' });
-
-      // MCP update
-      registry.updateActivity('s1', {
-        details: 'MCP status',
-        priority: 'mcp',
-      });
-
-      // Hook update should be suppressed
-      const result = registry.updateActivity('s1', {
-        details: 'Hook status',
-        priority: 'hook',
-      });
-
-      expect(result?.details).toBe('MCP status');
-    });
-
-    it('allows hook updates after MCP window expires', () => {
-      registry.startSession('s1', { pid: process.pid, projectPath: '/tmp/project' });
-
-      // MCP update with old timestamp
-      const session = registry.getSession('s1')!;
-      session.lastMcpUpdateAt = Date.now() - 31_000; // 31 seconds ago
-
-      const result = registry.updateActivity('s1', {
-        details: 'Hook status',
-        priority: 'hook',
-      });
-
-      expect(result?.details).toBe('Hook status');
-    });
-
-    it('always allows MCP updates', () => {
-      registry.startSession('s1', { pid: process.pid, projectPath: '/tmp/project' });
-
-      registry.updateActivity('s1', { details: 'First MCP', priority: 'mcp' });
-      registry.updateActivity('s1', { details: 'Second MCP', priority: 'mcp' });
-
-      expect(registry.getSession('s1')?.details).toBe('Second MCP');
     });
   });
 
@@ -222,8 +177,8 @@ describe('SessionRegistry', () => {
     it('increments edits for coding smallImageKey', () => {
       registry.startSession('s1', { pid: process.pid, projectPath: '/tmp/project' });
 
-      registry.updateActivity('s1', { smallImageKey: 'coding', priority: 'hook' });
-      registry.updateActivity('s1', { smallImageKey: 'coding', priority: 'hook' });
+      registry.updateActivity('s1', { smallImageKey: 'coding' });
+      registry.updateActivity('s1', { smallImageKey: 'coding' });
 
       expect(registry.getSession('s1')?.activityCounts.edits).toBe(2);
     });
@@ -231,7 +186,7 @@ describe('SessionRegistry', () => {
     it('increments commands for terminal smallImageKey', () => {
       registry.startSession('s1', { pid: process.pid, projectPath: '/tmp/project' });
 
-      registry.updateActivity('s1', { smallImageKey: 'terminal', priority: 'hook' });
+      registry.updateActivity('s1', { smallImageKey: 'terminal' });
 
       expect(registry.getSession('s1')?.activityCounts.commands).toBe(1);
     });
@@ -239,7 +194,7 @@ describe('SessionRegistry', () => {
     it('increments searches for searching smallImageKey', () => {
       registry.startSession('s1', { pid: process.pid, projectPath: '/tmp/project' });
 
-      registry.updateActivity('s1', { smallImageKey: 'searching', priority: 'hook' });
+      registry.updateActivity('s1', { smallImageKey: 'searching' });
 
       expect(registry.getSession('s1')?.activityCounts.searches).toBe(1);
     });
@@ -247,7 +202,7 @@ describe('SessionRegistry', () => {
     it('increments reads for reading smallImageKey', () => {
       registry.startSession('s1', { pid: process.pid, projectPath: '/tmp/project' });
 
-      registry.updateActivity('s1', { smallImageKey: 'reading', priority: 'hook' });
+      registry.updateActivity('s1', { smallImageKey: 'reading' });
 
       expect(registry.getSession('s1')?.activityCounts.reads).toBe(1);
     });
@@ -255,7 +210,7 @@ describe('SessionRegistry', () => {
     it('increments thinks for thinking smallImageKey', () => {
       registry.startSession('s1', { pid: process.pid, projectPath: '/tmp/project' });
 
-      registry.updateActivity('s1', { smallImageKey: 'thinking', priority: 'hook' });
+      registry.updateActivity('s1', { smallImageKey: 'thinking' });
 
       expect(registry.getSession('s1')?.activityCounts.thinks).toBe(1);
     });
@@ -263,7 +218,7 @@ describe('SessionRegistry', () => {
     it('does not increment for starting smallImageKey', () => {
       registry.startSession('s1', { pid: process.pid, projectPath: '/tmp/project' });
 
-      registry.updateActivity('s1', { smallImageKey: 'starting', priority: 'hook' });
+      registry.updateActivity('s1', { smallImageKey: 'starting' });
 
       const counts = registry.getSession('s1')?.activityCounts;
       expect(counts?.edits).toBe(0);
@@ -276,7 +231,7 @@ describe('SessionRegistry', () => {
     it('does not increment for idle smallImageKey', () => {
       registry.startSession('s1', { pid: process.pid, projectPath: '/tmp/project' });
 
-      registry.updateActivity('s1', { smallImageKey: 'idle', priority: 'hook' });
+      registry.updateActivity('s1', { smallImageKey: 'idle' });
 
       const counts = registry.getSession('s1')?.activityCounts;
       expect(counts?.edits).toBe(0);
@@ -286,36 +241,16 @@ describe('SessionRegistry', () => {
       expect(counts?.thinks).toBe(0);
     });
 
-    it('does not increment when MCP-suppressed', () => {
-      registry.startSession('s1', { pid: process.pid, projectPath: '/tmp/project' });
-
-      // MCP update first
-      registry.updateActivity('s1', {
-        smallImageKey: 'coding',
-        priority: 'mcp',
-      });
-
-      // Hook update suppressed by MCP window
-      registry.updateActivity('s1', {
-        smallImageKey: 'terminal',
-        priority: 'hook',
-      });
-
-      const counts = registry.getSession('s1')?.activityCounts;
-      expect(counts?.edits).toBe(1); // from the MCP update
-      expect(counts?.commands).toBe(0); // suppressed hook
-    });
-
     it('accumulates across multiple updates', () => {
       registry.startSession('s1', { pid: process.pid, projectPath: '/tmp/project' });
 
-      registry.updateActivity('s1', { smallImageKey: 'coding', priority: 'hook' });
-      registry.updateActivity('s1', { smallImageKey: 'coding', priority: 'hook' });
-      registry.updateActivity('s1', { smallImageKey: 'terminal', priority: 'hook' });
-      registry.updateActivity('s1', { smallImageKey: 'searching', priority: 'hook' });
-      registry.updateActivity('s1', { smallImageKey: 'reading', priority: 'hook' });
-      registry.updateActivity('s1', { smallImageKey: 'thinking', priority: 'hook' });
-      registry.updateActivity('s1', { smallImageKey: 'coding', priority: 'hook' });
+      registry.updateActivity('s1', { smallImageKey: 'coding' });
+      registry.updateActivity('s1', { smallImageKey: 'coding' });
+      registry.updateActivity('s1', { smallImageKey: 'terminal' });
+      registry.updateActivity('s1', { smallImageKey: 'searching' });
+      registry.updateActivity('s1', { smallImageKey: 'reading' });
+      registry.updateActivity('s1', { smallImageKey: 'thinking' });
+      registry.updateActivity('s1', { smallImageKey: 'coding' });
 
       const counts = registry.getSession('s1')?.activityCounts;
       expect(counts?.edits).toBe(3);

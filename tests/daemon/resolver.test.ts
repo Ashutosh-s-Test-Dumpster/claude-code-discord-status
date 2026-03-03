@@ -9,7 +9,6 @@ import {
 import type { Session, ActivityCounts } from '../../src/shared/types.js';
 import { emptyActivityCounts } from '../../src/shared/types.js';
 import {
-  MCP_PRIORITY_WINDOW,
   MESSAGE_ROTATION_INTERVAL,
   MULTI_SESSION_MESSAGES,
   MULTI_SESSION_TOOLTIPS,
@@ -29,7 +28,6 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     smallImageText: 'Writing code',
     startedAt: 1000000,
     lastActivityAt: Date.now(),
-    lastMcpUpdateAt: 0,
     status: 'active',
     activityCounts: emptyActivityCounts(),
     ...overrides,
@@ -58,28 +56,6 @@ describe('resolvePresence', () => {
       expect(activity.largeImageKey).toBe('claude-code');
       expect(activity.smallImageKey).toBe('coding');
       expect(activity.startTimestamp).toBe(session.startedAt);
-    });
-
-    it('uses MCP-set details when within priority window', () => {
-      const session = makeSession({
-        details: 'Implementing user authentication',
-        lastMcpUpdateAt: now - 5_000, // 5s ago, within 30s window
-      });
-      const activity = resolvePresence([session], now)!;
-
-      expect(activity.details).toBe('Implementing user authentication');
-    });
-
-    it('ignores MCP details after priority window expires', () => {
-      const session = makeSession({
-        details: 'Old MCP message',
-        smallImageKey: 'coding',
-        lastMcpUpdateAt: now - MCP_PRIORITY_WINDOW - 1, // expired
-      });
-      const activity = resolvePresence([session], now)!;
-
-      expect(activity.details).not.toBe('Old MCP message');
-      expect(SINGLE_SESSION_DETAILS['coding']).toContain(activity.details);
     });
 
     it('uses correct pool for each smallImageKey', () => {

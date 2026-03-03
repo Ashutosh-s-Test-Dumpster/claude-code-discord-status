@@ -2,7 +2,6 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 
 export const DEFAULT_PORT = 19452;
-export const MCP_PRIORITY_WINDOW = 30_000; // 30 seconds
 export const LARGE_IMAGE_KEY = 'claude-code';
 export const LARGE_IMAGE_TEXT = 'Claude Code';
 

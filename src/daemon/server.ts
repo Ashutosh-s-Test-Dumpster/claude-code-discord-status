@@ -11,7 +11,6 @@ const SessionActivitySchema = z.object({
   details: z.string().max(128).nullable().optional(),
   smallImageKey: z.string().optional(),
   smallImageText: z.string().optional(),
-  priority: z.enum(['hook', 'mcp']).optional(),
 });
 
 type HealthProvider = () => {
@@ -82,8 +81,7 @@ async function handleRequest(
         return;
       }
       // Deduplicate: if a session already exists for the same projectPath + pid, return it.
-      // This prevents the hook and MCP from the same Claude instance from double-registering,
-      // while still allowing two different Claude instances in the same folder.
+      // This allows two different Claude instances in the same folder while avoiding duplicates.
       const existing = registry.findSessionByProjectPath(parsed.data.projectPath);
       if (existing && existing.pid === parsed.data.pid) {
         sendJson(res, 200, { sessionId: existing.sessionId, projectName: existing.projectName });
