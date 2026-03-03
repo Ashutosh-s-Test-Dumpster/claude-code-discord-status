@@ -142,6 +142,14 @@ async function update(): Promise<void> {
     }
   }
 
+  // Clean up legacy MCP server registration (removed in v1.x)
+  try {
+    execSync('claude mcp remove discord-status', { stdio: 'pipe' });
+    p.log.success('Removed legacy MCP server registration');
+  } catch {
+    // MCP was never registered or claude CLI not available — ignore
+  }
+
   // Run npm install
   s.start(`Updating ${PACKAGE_NAME}...`);
   try {
