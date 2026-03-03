@@ -2,7 +2,7 @@
 
 ## Overview
 
-claude-code-discord-status has three components that work together to show live Claude Code activity on Discord:
+claude-code-discord-status has two components that work together to show live Claude Code activity on Discord:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -13,14 +13,11 @@ claude-code-discord-status has three components that work together to show live 
 │  │ Events        │                     │ (claude-hook.sh)     │  │
 │  └──────────────┘                     └──────────┬───────────┘  │
 │                                                   │              │
-│  ┌──────────────┐                                │              │
-│  │ MCP Client    │──tool call──┐                  │              │
-│  └──────────────┘              │                  │              │
-└────────────────────────────────┼──────────────────┼──────────────┘
-                                 │                  │
-                                 │  HTTP POST       │  HTTP POST
-                                 │                  │
-                                 ▼                  ▼
+└───────────────────────────────────────────────────┼──────────────┘
+                                                    │
+                                                    │  HTTP POST
+                                                    │
+                                                    ▼
                         ┌────────────────────────────────┐
                         │           Daemon                │
                         │                                 │
@@ -55,7 +52,7 @@ Entry point: `src/daemon/index.ts` wires the registry, HTTP server, Discord clie
 In-memory `Map<string, Session>` with:
 
 - `startSession()` — Creates a session with initial state and zero activity counters
-- `updateActivity()` — Applies field updates, increments activity counters, respects MCP priority window
+- `updateActivity()` — Applies field updates, increments activity counters
 - `endSession()` — Removes a session
 - `checkStaleSessions()` — PID liveness check, idle/remove timeouts
 - `findSessionByProjectPath()` — Used for session deduplication
@@ -113,23 +110,11 @@ Bash script that receives Claude Code lifecycle events via stdin as JSON. Maps e
 
 The hook script always exits 0 to never block Claude Code. HTTP calls have 2-second timeouts.
 
-### MCP Server (`src/mcp/index.ts`)
-
-Stdio-based MCP server exposing one tool: `set_discord_status`.
-
-- On first call, `findOrCreateSession()` looks up existing session by `projectPath`, or registers a new one
-- Activity updates use `priority: 'mcp'` which triggers the 30-second priority window
-- Cached session ID avoids repeated lookups
-
 ## Key Design Decisions
-
-### MCP Priority Window
-
-Hook updates fire frequently (every tool use). MCP updates are intentional, contextual messages from Claude. The 30-second priority window ensures MCP messages aren't immediately overwritten by the next hook event.
 
 ### Session Deduplication
 
-Both the hook and MCP server register sessions independently. To prevent duplicate sessions from the same Claude Code instance, the `/sessions/:id/start` endpoint deduplicates by `projectPath + pid`. Two different Claude instances in the same folder (different PIDs) correctly get separate sessions.
+The `/sessions/:id/start` endpoint deduplicates by `projectPath + pid`. Two different Claude instances in the same folder (different PIDs) correctly get separate sessions.
 
 ### Stable Pick (Anti-Flicker)
 
@@ -137,7 +122,7 @@ Multi-session messages rotate every 5 minutes using time-bucketed hashing rather
 
 ### Activity Counters
 
-Counters increment based on `smallImageKey` after field updates in `updateActivity()`. The `starting` and `idle` keys intentionally don't map to any counter. MCP-suppressed hook updates don't increment counters because of the early return.
+Counters increment based on `smallImageKey` after field updates in `updateActivity()`. The `starting` and `idle` keys intentionally don't map to any counter.
 
 ## Data Flow Example
 
