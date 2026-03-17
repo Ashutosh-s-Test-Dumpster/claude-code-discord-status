@@ -31,7 +31,7 @@
 ## Features
 
 - **Live activity updates** — Your Discord card reflects what Claude is doing right now (editing, searching, running commands, thinking)
-- **MCP-powered custom messages** — Claude can set its own status via `set_discord_status`, with a 30-second priority window over hook updates
+- **Self-healing daemon** — If the daemon dies (system restart, sleep/wake), it auto-restarts on the next Claude Code session
 - **Multi-session support** — Running multiple Claude Code instances? The card escalates with quirky messages and aggregated stats
 - **Activity mode detection** — Dominant activity type (coding, terminal, searching, thinking) changes the card icon
 - **Rotating tooltips** — Hidden easter eggs on hover, rotating every 5 minutes
@@ -46,20 +46,29 @@
 - Discord desktop app running
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI installed
 
-### Setup
+### Install & Setup
+
+```bash
+npm install -g claude-code-discord-status
+claude-discord-status setup
+```
+
+Or try it without installing globally:
 
 ```bash
 npx claude-code-discord-status setup
 ```
 
-This will:
+> **Tip:** The global install (`npm install -g`) is recommended — it puts the CLI on your PATH and keeps files in a stable location. The `npx` approach works for a quick try but relies on npm's cache directory.
+
+Setup will:
 
 1. Create a config at `~/.claude-discord-status/config.json`
-2. Register the MCP server with Claude Code
+2. Copy the hook script to `~/.claude-discord-status/` for persistence
 3. Add lifecycle hooks to `~/.claude/settings.json`
 4. Start the daemon in the background
 
-That's it. Your Discord status updates automatically whenever you use Claude Code.
+The daemon auto-restarts when needed — if it gets killed (system restart, sleep/wake), the next Claude Code session brings it back automatically.
 
 ## How It Works
 
@@ -67,24 +76,26 @@ That's it. Your Discord status updates automatically whenever you use Claude Cod
   <img src="./assets/architecture.svg" alt="Architecture diagram" width="800" />
 </p>
 
-Three components work together:
+Two components work together:
 
-1. **Hooks** — Bash scripts fired by Claude Code lifecycle events (session start/end, tool use, prompt submit). They POST updates to the daemon's HTTP API.
-2. **MCP Server** — An MCP tool (`set_discord_status`) that Claude can call to set a custom, contextual status message — these take priority for 30 seconds.
-3. **Daemon** — Background process that holds the Discord RPC connection, tracks all sessions, resolves what to show, and pushes it to Discord.
+1. **Hooks** — Bash scripts fired by Claude Code lifecycle events (session start/end, tool use, prompt submit). They POST updates to the daemon's HTTP API. If the daemon isn't running, the hook auto-starts it.
+2. **Daemon** — Background process that holds the Discord RPC connection, tracks all sessions, resolves what to show, and pushes it to Discord.
 
 > See [docs/architecture.md](./docs/architecture.md) for the full deep dive.
 
 ## CLI
 
 ```bash
-npx claude-code-discord-status setup            # Interactive setup wizard
-npx claude-code-discord-status status           # Check daemon status and active sessions
-npx claude-code-discord-status start -d         # Start daemon in background
-npx claude-code-discord-status stop             # Stop the daemon
-npx claude-code-discord-status preset [name]    # Change message style
-npx claude-code-discord-status uninstall        # Remove everything
+claude-discord-status setup            # Interactive setup wizard
+claude-discord-status status           # Check daemon status and active sessions
+claude-discord-status start -d         # Start daemon in background
+claude-discord-status stop             # Stop the daemon
+claude-discord-status preset [name]    # Change message style
+claude-discord-status update           # Update to latest version
+claude-discord-status uninstall        # Remove everything
 ```
+
+> All commands also work with `npx claude-code-discord-status <command>`.
 
 ## Configuration
 
@@ -105,8 +116,8 @@ The default client ID works out of the box — it's a public app identifier, not
 Choose how your Discord status sounds. Set during setup, or change anytime:
 
 ```bash
-npx claude-code-discord-status preset            # Interactive selection
-npx claude-code-discord-status preset dev-humor   # Set directly
+claude-discord-status preset            # Interactive selection
+claude-discord-status preset dev-humor   # Set directly
 ```
 
 | Preset | Style | Example |

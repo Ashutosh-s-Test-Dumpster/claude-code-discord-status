@@ -1,4 +1,12 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  unlinkSync,
+  copyFileSync,
+  chmodSync,
+} from 'node:fs';
 import { spawn, execSync } from 'node:child_process';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,6 +16,7 @@ import {
   CONFIG_FILE,
   PID_FILE,
   LOG_FILE,
+  HOOK_FILE,
   DEFAULT_PORT,
   DEFAULT_DISCORD_CLIENT_ID,
   PACKAGE_NAME,
@@ -52,6 +61,20 @@ function persistDaemonPath(): void {
   } catch {
     // Non-critical
   }
+}
+
+function copyHookScript(): string {
+  const candidates = [
+    resolve(__dirname, '..', 'src', 'hooks', 'claude-hook.sh'),
+    resolve(__dirname, '..', 'hooks', 'claude-hook.sh'),
+  ];
+  const source = candidates.find((p) => existsSync(p));
+  if (!source) return HOOK_FILE;
+
+  mkdirSync(CONFIG_DIR, { recursive: true });
+  copyFileSync(source, HOOK_FILE);
+  chmodSync(HOOK_FILE, 0o755);
+  return HOOK_FILE;
 }
 
 async function waitForProcessExit(pid: number, timeoutMs = 3000): Promise<boolean> {
@@ -181,6 +204,9 @@ async function update(): Promise<void> {
     p.outro();
     process.exit(1);
   }
+
+  // Re-copy hook script to stable location
+  copyHookScript();
 
   // Restart daemon
   const daemonPath = resolve(__dirname, 'daemon', 'index.js');
@@ -455,9 +481,8 @@ async function setup(): Promise<void> {
 
   // --- Installation ---
 
-  // Merge hooks into ~/.claude/settings.json
-  const hookScriptPath = resolve(__dirname, '..', 'src', 'hooks', 'claude-hook.sh');
-  const hookCommand = existsSync(hookScriptPath) ? hookScriptPath : 'claude-hook.sh';
+  // Copy hook script to stable location and register hooks
+  const hookCommand = copyHookScript();
 
   const claudeSettingsPath = join(
     process.env.HOME ?? process.env.USERPROFILE ?? '~',
@@ -475,22 +500,27 @@ async function setup(): Promise<void> {
 
     const existingHooks = (existingSettings.hooks ?? {}) as Record<string, unknown[]>;
     const newHooks = hookConfig.hooks as Record<string, unknown[]>;
-    let hooksAdded = 0;
-    let hooksSkipped = 0;
 
+    // Remove any old claude-hook.sh entries (from previous installs/npx paths)
+    for (const event of Object.keys(existingHooks)) {
+      existingHooks[event] = existingHooks[event].filter((entry: unknown) => {
+        const str = JSON.stringify(entry);
+        return !str.includes('claude-hook.sh');
+      });
+      if (existingHooks[event].length === 0) {
+        delete existingHooks[event];
+      }
+    }
+
+    // Add fresh entries pointing to the stable copy
+    let hooksAdded = 0;
     for (const [event, entries] of Object.entries(newHooks)) {
       if (!existingHooks[event]) {
         existingHooks[event] = [];
       }
       for (const entry of entries) {
-        const entryStr = JSON.stringify(entry);
-        const alreadyExists = existingHooks[event].some((e) => JSON.stringify(e) === entryStr);
-        if (!alreadyExists) {
-          existingHooks[event].push(entry);
-          hooksAdded++;
-        } else {
-          hooksSkipped++;
-        }
+        existingHooks[event].push(entry);
+        hooksAdded++;
       }
     }
 
@@ -498,13 +528,7 @@ async function setup(): Promise<void> {
     mkdirSync(dirname(claudeSettingsPath), { recursive: true });
     writeFileSync(claudeSettingsPath, JSON.stringify(existingSettings, null, 2), 'utf-8');
 
-    if (hooksAdded > 0 && hooksSkipped > 0) {
-      p.log.success(`Hooks configured (${hooksAdded} added, ${hooksSkipped} already present)`);
-    } else if (hooksAdded > 0) {
-      p.log.success(`Hooks configured (${hooksAdded} lifecycle events)`);
-    } else {
-      p.log.success('Hooks already configured (no changes)');
-    }
+    p.log.success(`Hooks configured (${hooksAdded} lifecycle events)`);
   } catch (err) {
     p.log.warn(`Could not configure hooks: ${(err as Error).message}`);
     p.log.info(`  Manually add hooks to ${claudeSettingsPath}`);

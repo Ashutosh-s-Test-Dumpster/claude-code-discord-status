@@ -9,6 +9,7 @@ export const CONFIG_DIR = join(homedir(), '.claude-discord-status');
 export const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 export const PID_FILE = join(CONFIG_DIR, 'daemon.pid');
 export const LOG_FILE = join(CONFIG_DIR, 'daemon.log');
+export const HOOK_FILE = join(CONFIG_DIR, 'claude-hook.sh');
 export const UPDATE_CHECK_FILE = join(CONFIG_DIR, 'update-check.json');
 export const LAST_SEEN_VERSION_FILE = join(CONFIG_DIR, 'last-seen-version');
 export const PENDING_CHANGELOG_FILE = join(CONFIG_DIR, 'pending-changelog');
