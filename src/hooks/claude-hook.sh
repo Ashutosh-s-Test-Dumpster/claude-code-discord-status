@@ -1,12 +1,86 @@
 #!/usr/bin/env bash
 # Claude Code Discord Status — Hook Script
 # Reads lifecycle events from stdin and forwards to the daemon.
+# Auto-starts the daemon if it's not running.
 # Always exits 0 to never block Claude Code.
 
 set -euo pipefail
 
 DAEMON_URL="${CLAUDE_DISCORD_URL:-http://127.0.0.1:${CLAUDE_DISCORD_PORT:-19452}}"
-CURL_OPTS="--connect-timeout 2 --max-time 2 -s -o /dev/null"
+CURL_OPTS="--connect-timeout 1 --max-time 1 -s -o /dev/null"
+
+CONFIG_DIR="$HOME/.claude-discord-status"
+CONFIG_FILE="$CONFIG_DIR/config.json"
+LOG_FILE="$CONFIG_DIR/daemon.log"
+LOCK_DIR="$CONFIG_DIR/autostart.lock"
+AUTOSTART_COOLDOWN=60
+
+# Cross-platform file modification time (epoch seconds)
+file_mtime() {
+  stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0
+}
+
+# Auto-start daemon if not reachable
+ensure_daemon() {
+  # Quick health check
+  if curl --connect-timeout 0.5 --max-time 1 -s -o /dev/null "${DAEMON_URL}/health" 2>/dev/null; then
+    return 0
+  fi
+
+  # Check cooldown via lock dir
+  if [ -d "$LOCK_DIR" ]; then
+    local lock_age
+    lock_age=$(( $(date +%s) - $(file_mtime "$LOCK_DIR") ))
+    if [ "$lock_age" -lt "$AUTOSTART_COOLDOWN" ]; then
+      return 1
+    fi
+    rmdir "$LOCK_DIR" 2>/dev/null || true
+  fi
+
+  # Acquire lock (atomic mkdir)
+  if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+    return 1
+  fi
+
+  # Resolve daemon path
+  local daemon_path=""
+
+  # Strategy 1: Read from config file
+  if [ -f "$CONFIG_FILE" ]; then
+    daemon_path=$(jq -r '.daemonPath // empty' "$CONFIG_FILE" 2>/dev/null) || true
+  fi
+
+  # Strategy 2: Derive from hook script location
+  if [ -z "$daemon_path" ] || [ ! -f "$daemon_path" ]; then
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    daemon_path="${script_dir}/../../dist/daemon/index.js"
+  fi
+
+  # Validate daemon path exists
+  if [ ! -f "$daemon_path" ]; then
+    rmdir "$LOCK_DIR" 2>/dev/null || true
+    return 1
+  fi
+
+  # Ensure config dir exists
+  mkdir -p "$CONFIG_DIR" 2>/dev/null || true
+
+  # Spawn daemon in background
+  nohup node "$daemon_path" >> "$LOG_FILE" 2>&1 &
+
+  # Poll for readiness
+  local attempts=0
+  while [ "$attempts" -lt 8 ]; do
+    sleep 0.2
+    if curl --connect-timeout 0.3 --max-time 0.5 -s -o /dev/null "${DAEMON_URL}/health" 2>/dev/null; then
+      return 0
+    fi
+    attempts=$((attempts + 1))
+  done
+
+  return 1
+}
 
 # Read JSON from stdin
 INPUT=$(cat)
@@ -20,6 +94,9 @@ CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null) || true
 if [ -z "$SESSION_ID" ] || [ -z "$HOOK_EVENT" ]; then
   exit 0
 fi
+
+# Ensure daemon is running (auto-start if needed)
+ensure_daemon || true
 
 # Helper: POST JSON to daemon
 post_json() {

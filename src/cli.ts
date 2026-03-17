@@ -35,6 +35,25 @@ const __dirname = dirname(__filename);
 const args = process.argv.slice(2);
 const command = args[0];
 
+function persistDaemonPath(): void {
+  const daemonPath = resolve(__dirname, 'daemon', 'index.js');
+  if (!existsSync(daemonPath)) return;
+
+  try {
+    let config: Record<string, unknown> = {};
+    if (existsSync(CONFIG_FILE)) {
+      config = JSON.parse(readFileSync(CONFIG_FILE, 'utf-8'));
+    }
+    if (config.daemonPath !== daemonPath) {
+      config.daemonPath = daemonPath;
+      mkdirSync(CONFIG_DIR, { recursive: true });
+      writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
+    }
+  } catch {
+    // Non-critical
+  }
+}
+
 async function waitForProcessExit(pid: number, timeoutMs = 3000): Promise<boolean> {
   const interval = 100;
   let elapsed = 0;
@@ -175,6 +194,7 @@ async function update(): Promise<void> {
       env: { ...process.env },
     });
     child.unref();
+    persistDaemonPath();
     p.log.success(`Daemon restarted (PID ${child.pid})`);
   }
 
@@ -212,6 +232,7 @@ async function startDaemon(background: boolean): Promise<void> {
     });
     child.unref();
 
+    persistDaemonPath();
     p.log.success(`Daemon started in background (PID ${child.pid})`);
     p.log.info(`Log file: ${LOG_FILE}`);
     p.outro();
@@ -423,10 +444,11 @@ async function setup(): Promise<void> {
   }
 
   mkdirSync(CONFIG_DIR, { recursive: true });
-  const config = {
+  const config: Record<string, unknown> = {
     discordClientId: resolvedClientId,
     daemonPort: DEFAULT_PORT,
     preset: presetChoice,
+    daemonPath: resolve(__dirname, 'daemon', 'index.js'),
   };
   writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
   p.log.success(`Config written to ${CONFIG_FILE}`);
@@ -696,6 +718,7 @@ async function changePreset(presetArg?: string): Promise<void> {
   }
 
   existingConfig.preset = selectedPreset;
+  existingConfig.daemonPath = resolve(__dirname, 'daemon', 'index.js');
   mkdirSync(CONFIG_DIR, { recursive: true });
   writeFileSync(CONFIG_FILE, JSON.stringify(existingConfig, null, 2), 'utf-8');
   p.log.success(`Message style set to ${PRESETS[selectedPreset].label}`);
