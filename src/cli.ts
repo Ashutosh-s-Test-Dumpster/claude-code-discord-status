@@ -20,8 +20,11 @@ import {
   DEFAULT_PORT,
   DEFAULT_DISCORD_CLIENT_ID,
   PACKAGE_NAME,
+  LEGACY_CONFIG_DIR,
 } from './shared/constants.js';
 import { loadConfig } from './shared/config.js';
+import { migrateFromLegacy } from './shared/migration.js';
+import { runAllChecks } from './doctor.js';
 import { PRESETS, PRESET_NAMES, DEFAULT_PRESET, isValidPreset } from './presets/index.js';
 import type { PresetName } from './presets/types.js';
 import { formatDuration, statusBadge, connectionBadge, dim } from './cli-utils.js';
@@ -162,13 +165,13 @@ function displayPostCommandNotifications(): void {
   if (compareVersions(VERSION, cached.latestVersion) >= 0) return;
 
   p.note(
-    `Update available: v${VERSION} → v${cached.latestVersion}\nRun \`claude-discord-status update\` to update`,
+    `Update available: v${VERSION} → v${cached.latestVersion}\nRun \`claude-presence update\` to update`,
     'Update',
   );
 }
 
 async function update(): Promise<void> {
-  p.intro(`claude-discord-status v${VERSION}`);
+  p.intro(`claude-presence v${VERSION}`);
 
   const s = p.spinner();
 
@@ -228,7 +231,7 @@ async function update(): Promise<void> {
 }
 
 async function startDaemon(background: boolean): Promise<void> {
-  p.intro(`claude-discord-status v${VERSION}`);
+  p.intro(`claude-presence v${VERSION}`);
 
   const existing = getDaemonPid();
   if (existing) {
@@ -278,7 +281,7 @@ async function startDaemon(background: boolean): Promise<void> {
 }
 
 async function stopDaemon(): Promise<void> {
-  p.intro(`claude-discord-status v${VERSION}`);
+  p.intro(`claude-presence v${VERSION}`);
 
   const pid = getDaemonPid();
   if (!pid) {
@@ -305,7 +308,7 @@ async function stopDaemon(): Promise<void> {
 }
 
 async function showStatus(): Promise<void> {
-  p.intro(`claude-discord-status v${VERSION}`);
+  p.intro(`claude-presence v${VERSION}`);
 
   const pid = getDaemonPid();
   const health = await checkHealth();
@@ -367,7 +370,7 @@ async function showStatus(): Promise<void> {
 }
 
 async function setup(): Promise<void> {
-  p.intro('claude-discord-status');
+  p.intro('claude-presence');
 
   // --- Prerequisites ---
   const nodeVersion = process.versions.node;
@@ -393,9 +396,38 @@ async function setup(): Promise<void> {
   p.log.success(`jq ${jqVersion}`);
 
   // --- Configuration ---
-  let resolvedClientId = DEFAULT_DISCORD_CLIENT_ID;
   const existingConfig = existsSync(CONFIG_FILE);
 
+  // Preset selection first
+  let existingPreset: PresetName = DEFAULT_PRESET;
+  if (existingConfig) {
+    try {
+      const current = JSON.parse(readFileSync(CONFIG_FILE, 'utf-8'));
+      if (current.preset && isValidPreset(current.preset)) {
+        existingPreset = current.preset;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const presetChoice = await p.select({
+    message: 'Choose a message style',
+    options: PRESET_NAMES.map((name) => ({
+      value: name,
+      label: PRESETS[name].label,
+      hint: PRESETS[name].description,
+    })),
+    initialValue: existingPreset,
+  });
+
+  if (p.isCancel(presetChoice)) {
+    p.cancel('Setup cancelled.');
+    process.exit(0);
+  }
+
+  // Custom Discord app — last, defaults to No
+  let resolvedClientId = DEFAULT_DISCORD_CLIENT_ID;
   if (existingConfig) {
     try {
       const current = JSON.parse(readFileSync(CONFIG_FILE, 'utf-8'));
@@ -407,8 +439,12 @@ async function setup(): Promise<void> {
     }
   }
 
+  p.log.step(
+    "The default works out of the box \u2014 only change this if you've created your own Discord app",
+  );
+
   const useCustomApp = await p.confirm({
-    message: 'Use a custom Discord app? (default shows as "Claude Code")',
+    message: 'Use a custom Discord Application ID?',
     initialValue: false,
   });
 
@@ -436,37 +472,9 @@ async function setup(): Promise<void> {
   }
 
   if (resolvedClientId === DEFAULT_DISCORD_CLIENT_ID) {
-    p.log.info('Using default Client ID');
+    p.log.info('Using default Client ID (recommended)');
   } else {
     p.log.info(`Using custom Client ID: ${resolvedClientId}`);
-  }
-
-  // Read existing preset if reconfiguring
-  let existingPreset: PresetName = DEFAULT_PRESET;
-  if (existingConfig) {
-    try {
-      const current = JSON.parse(readFileSync(CONFIG_FILE, 'utf-8'));
-      if (current.preset && isValidPreset(current.preset)) {
-        existingPreset = current.preset;
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  const presetChoice = await p.select({
-    message: 'Choose a message style',
-    options: PRESET_NAMES.map((name) => ({
-      value: name,
-      label: PRESETS[name].label,
-      hint: PRESETS[name].description,
-    })),
-    initialValue: existingPreset,
-  });
-
-  if (p.isCancel(presetChoice)) {
-    p.cancel('Setup cancelled.');
-    process.exit(0);
   }
 
   mkdirSync(CONFIG_DIR, { recursive: true });
@@ -578,7 +586,7 @@ async function setup(): Promise<void> {
   p.outro('Setup complete!');
 }
 
-function createHookConfig(hookCommand: string) {
+export function createHookConfig(hookCommand: string) {
   const syncHook = {
     matcher: '',
     hooks: [
@@ -615,7 +623,7 @@ function createHookConfig(hookCommand: string) {
 }
 
 async function uninstall(): Promise<void> {
-  p.intro('claude-discord-status');
+  p.intro('claude-presence');
 
   const shouldContinue = await p.confirm({
     message: 'This will remove all hooks and config. Continue?',
@@ -676,11 +684,19 @@ async function uninstall(): Promise<void> {
     p.log.warn('Could not clean up hooks');
   }
 
-  // Remove config
+  // Remove config — both new and legacy dirs
   try {
     const { rmSync } = await import('node:fs');
-    rmSync(CONFIG_DIR, { recursive: true, force: true });
-    p.log.success('Config removed');
+    let removed = false;
+    if (existsSync(CONFIG_DIR)) {
+      rmSync(CONFIG_DIR, { recursive: true, force: true });
+      removed = true;
+    }
+    if (existsSync(LEGACY_CONFIG_DIR)) {
+      rmSync(LEGACY_CONFIG_DIR, { recursive: true, force: true });
+      removed = true;
+    }
+    p.log.success(removed ? 'Config removed' : 'Config already removed');
   } catch {
     p.log.warn('Could not remove config directory');
   }
@@ -689,7 +705,7 @@ async function uninstall(): Promise<void> {
 }
 
 async function changePreset(presetArg?: string): Promise<void> {
-  p.intro(`claude-discord-status v${VERSION}`);
+  p.intro(`claude-presence v${VERSION}`);
 
   let selectedPreset: PresetName;
 
@@ -775,8 +791,79 @@ async function changePreset(presetArg?: string): Promise<void> {
   p.outro();
 }
 
+async function doctor(): Promise<void> {
+  p.intro(`claude-presence v${VERSION}`);
+
+  const config = loadConfig();
+  const autoFix = args.includes('--fix');
+
+  const s = p.spinner();
+  s.start('Checking health...');
+  const results = await runAllChecks(config.daemonPort);
+  s.stop('Health check complete');
+
+  for (const r of results) {
+    if (r.status === 'pass') {
+      p.log.success(r.message);
+    } else if (r.status === 'warn') {
+      p.log.warn(`${r.label} \u2014 ${r.message}`);
+    } else {
+      p.log.error(`${r.label} \u2014 ${r.message}`);
+    }
+  }
+
+  const fixable = results.filter((r) => r.status !== 'pass' && r.fix);
+  if (fixable.length === 0) {
+    p.outro('All checks passed.');
+    return;
+  }
+
+  let shouldFix = autoFix;
+  if (!autoFix) {
+    const confirm = await p.confirm({
+      message: `Found ${fixable.length} fixable issue(s). Fix them?`,
+      initialValue: true,
+    });
+    if (p.isCancel(confirm)) {
+      p.cancel('Cancelled.');
+      process.exit(0);
+    }
+    shouldFix = confirm;
+  }
+
+  if (shouldFix) {
+    for (const r of fixable) {
+      await r.fix!();
+      p.log.success(`Fixed: ${r.label}`);
+    }
+
+    // Try to start daemon if still not reachable
+    try {
+      const res = await fetch(`http://127.0.0.1:${config.daemonPort}/health`);
+      if (!res.ok) throw new Error();
+    } catch {
+      const daemonPath = resolve(__dirname, 'daemon', 'index.js');
+      if (existsSync(daemonPath)) {
+        mkdirSync(CONFIG_DIR, { recursive: true });
+        const { openSync } = await import('node:fs');
+        const logFd = openSync(LOG_FILE, 'a');
+        const child = spawn('node', [daemonPath], {
+          detached: true,
+          stdio: ['ignore', logFd, logFd],
+          env: { ...process.env },
+        });
+        child.unref();
+        persistDaemonPath();
+        p.log.success(`Daemon started (PID ${child.pid})`);
+      }
+    }
+  }
+
+  p.outro(shouldFix ? 'Issues fixed.' : 'Run with --fix to auto-repair.');
+}
+
 function showHelp(): void {
-  p.intro(`claude-discord-status v${VERSION}`);
+  p.intro(`claude-presence v${VERSION}`);
 
   p.note(
     [
@@ -785,6 +872,7 @@ function showHelp(): void {
       'stop             Stop the daemon',
       'status           Show daemon status and sessions',
       'preset [name]    Change message style',
+      'doctor [--fix]   Diagnose and fix issues',
       'update           Update to the latest version',
       'uninstall        Remove all hooks and config',
     ].join('\n'),
@@ -793,6 +881,12 @@ function showHelp(): void {
 
   p.outro('Discord Rich Presence for Claude Code');
   displayPostCommandNotifications();
+}
+
+// Run migration before any command
+const migrated = migrateFromLegacy();
+if (migrated) {
+  p.log.info('Migrated config from ~/.claude-discord-status/ to ~/.claude-presence/');
 }
 
 // Main
@@ -811,6 +905,9 @@ switch (command) {
     break;
   case 'preset':
     await changePreset(args[1]);
+    break;
+  case 'doctor':
+    await doctor();
     break;
   case 'uninstall':
     await uninstall();
