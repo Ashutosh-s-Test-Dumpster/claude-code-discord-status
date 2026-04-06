@@ -18,6 +18,11 @@ const COUNTER_MAP: Record<string, keyof ActivityCounts> = {
 export class SessionRegistry {
   private sessions = new Map<string, Session>();
   private onChangeCallback: (() => void) | null = null;
+  private readonly platform: NodeJS.Platform;
+
+  constructor(platform?: NodeJS.Platform) {
+    this.platform = platform ?? process.platform;
+  }
 
   onChange(callback: () => void): void {
     this.onChangeCallback = callback;
@@ -100,20 +105,33 @@ export class SessionRegistry {
     let changed = false;
 
     for (const [id, session] of this.sessions) {
-      // Check PID liveness
-      if (!this.isPidAlive(session.pid)) {
+      const elapsed = now - session.lastActivityAt;
+
+      // Check activity timeout (always applies)
+      if (elapsed >= removeTimeout) {
         this.sessions.delete(id);
         changed = true;
         continue;
       }
 
-      // Check activity timeout
-      const elapsed = now - session.lastActivityAt;
+      // Check PID liveness
+      if (!this.isPidAlive(session.pid)) {
+        if (this.platform === 'win32') {
+          // On Windows, hook PIDs are transient shells — mark idle instead of removing.
+          // The session stays alive as long as hooks keep refreshing lastActivityAt.
+          if (session.status !== 'idle') {
+            session.status = 'idle';
+            changed = true;
+          }
+        } else {
+          // On Unix, PID is Claude Code's actual PID — if dead, remove immediately
+          this.sessions.delete(id);
+          changed = true;
+        }
+        continue;
+      }
 
-      if (elapsed >= removeTimeout) {
-        this.sessions.delete(id);
-        changed = true;
-      } else if (elapsed >= idleTimeout && session.status !== 'idle') {
+      if (elapsed >= idleTimeout && session.status !== 'idle') {
         session.status = 'idle';
         changed = true;
       }
