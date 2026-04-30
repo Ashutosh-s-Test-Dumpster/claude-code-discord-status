@@ -42,8 +42,10 @@ export interface DiscordActivity {
   state: string;
   largeImageKey: string;
   largeImageText: string;
+  largeImageUrl?: string;
   smallImageKey?: string;
   smallImageText?: string;
+  smallImageUrl?: string;
   startTimestamp: number;
 }
 

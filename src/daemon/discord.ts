@@ -65,11 +65,14 @@ export class DiscordClient {
 
     try {
       await this.client.user?.setActivity({
+        name: 'Claude Code',
         details: activity.details,
         state: activity.state,
-        largeImageKey: activity.largeImageKey,
+        largeImageKey: activity.largeImageUrl ? undefined : activity.largeImageKey,
+        largeImageUrl: activity.largeImageUrl,
         largeImageText: activity.largeImageText,
-        smallImageKey: activity.smallImageKey,
+        smallImageKey: activity.smallImageUrl ? undefined : activity.smallImageKey,
+        smallImageUrl: activity.smallImageUrl,
         smallImageText: activity.smallImageText,
         startTimestamp: new Date(activity.startTimestamp),
         type: 0, // Playing

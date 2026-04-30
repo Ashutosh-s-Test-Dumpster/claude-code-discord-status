@@ -3,6 +3,8 @@ import type { MessagePreset } from '../presets/types.js';
 import {
   LARGE_IMAGE_KEY,
   LARGE_IMAGE_TEXT,
+  LARGE_IMAGE_URL,
+  SMALL_IMAGE_URLS,
   MESSAGE_ROTATION_INTERVAL,
 } from '../shared/constants.js';
 
@@ -32,17 +34,49 @@ function buildSingleSessionActivity(
     preset.singleSessionDetails[session.smallImageKey] ?? preset.singleSessionDetailsFallback;
   const details = stablePick(pool, session.startedAt, now);
 
-  const state = stablePick(preset.singleSessionStateMessages, session.startedAt + 1, now);
+  const state = preset.showSingleSessionStats
+    ? formatSingleSessionStatsLine(session, now)
+    : stablePick(preset.singleSessionStateMessages, session.startedAt + 1, now);
 
   return {
     details,
     state,
     largeImageKey: LARGE_IMAGE_KEY,
     largeImageText: LARGE_IMAGE_TEXT,
+    largeImageUrl: LARGE_IMAGE_URL,
     smallImageKey: session.smallImageKey,
     smallImageText: sanitizeField(session.smallImageText),
+    smallImageUrl: session.smallImageKey ? SMALL_IMAGE_URLS[session.smallImageKey] : undefined,
     startTimestamp: session.startedAt,
   };
+}
+
+function formatSingleSessionStatsLine(session: Session, now: number): string {
+  const parts: string[] = [];
+
+  if (session.projectName) parts.push(session.projectName);
+
+  const { edits, commands, searches, reads, thinks } = session.activityCounts;
+  if (edits > 0) parts.push(`${edits} ${edits === 1 ? 'edit' : 'edits'}`);
+  if (commands > 0) parts.push(`${commands} ${commands === 1 ? 'cmd' : 'cmds'}`);
+  if (searches > 0) parts.push(`${searches} ${searches === 1 ? 'search' : 'searches'}`);
+  if (reads > 0) parts.push(`${reads} ${reads === 1 ? 'read' : 'reads'}`);
+  if (thinks > 0) parts.push(`${thinks} ${thinks === 1 ? 'think' : 'thinks'}`);
+
+  const elapsedMs = now - session.startedAt;
+  const elapsedMin = Math.floor(elapsedMs / 60_000);
+  if (elapsedMin >= 60) {
+    const h = Math.floor(elapsedMin / 60);
+    const m = elapsedMin % 60;
+    parts.push(m > 0 ? `${h}h ${m}m` : `${h}h`);
+  } else if (elapsedMin > 0) {
+    parts.push(`${elapsedMin}m`);
+  }
+
+  const joined = parts.join(' · ');
+  if (joined.length < MIN_FIELD_LENGTH) return 'Session started';
+  if (joined.length > MAX_FIELD_LENGTH) return joined.slice(0, MAX_FIELD_LENGTH - 1) + '…';
+  return joined;
 }
 
 function buildMultiSessionActivity(
@@ -71,8 +105,10 @@ function buildMultiSessionActivity(
     state,
     largeImageKey: LARGE_IMAGE_KEY,
     largeImageText: LARGE_IMAGE_TEXT,
+    largeImageUrl: LARGE_IMAGE_URL,
     smallImageKey,
     smallImageText: sanitizeField(smallImageText),
+    smallImageUrl: smallImageKey ? SMALL_IMAGE_URLS[smallImageKey] : undefined,
     startTimestamp: earliest.startedAt,
   };
 }

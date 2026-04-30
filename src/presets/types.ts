@@ -1,4 +1,10 @@
-export type PresetName = 'gen-z' | 'professional' | 'dev-humor' | 'minimal' | 'chaotic';
+export type PresetName =
+  | 'gen-z'
+  | 'professional'
+  | 'dev-humor'
+  | 'minimal'
+  | 'chaotic'
+  | 'claude-adv';
 
 export interface MessagePreset {
   /** Human-readable name for CLI display */
@@ -17,4 +23,6 @@ export interface MessagePreset {
   multiSessionMessagesOverflow: string[];
   /** Hover tooltip text for multi-session mode */
   multiSessionTooltips: string[];
+  /** When true, single-session state line shows live stats instead of a rotating message */
+  showSingleSessionStats?: boolean;
 }

@@ -5,6 +5,14 @@ export const DEFAULT_PORT = 19452;
 export const LARGE_IMAGE_KEY = 'claude-code';
 export const LARGE_IMAGE_TEXT = 'Claude Code';
 
+// Set these to override asset keys with direct image URLs.
+// Any publicly accessible image URL works (PNG recommended, 512×512+).
+// Leave undefined to use the registered Discord app assets instead.
+export const LARGE_IMAGE_URL: string | undefined = undefined;
+export const SMALL_IMAGE_URLS: Record<string, string> = {
+  // Example: starting: 'https://example.com/starting.png',
+};
+
 export const CONFIG_DIR = join(homedir(), '.claude-presence');
 export const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 export const PID_FILE = join(CONFIG_DIR, 'daemon.pid');
