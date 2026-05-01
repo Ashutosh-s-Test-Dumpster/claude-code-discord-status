@@ -28,6 +28,17 @@ file_mtime() {
   stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0
 }
 
+# Convert Windows paths (C:\foo or C:/foo) to Git Bash paths (/c/foo)
+normalize_path() {
+  local p="$1"
+  if [[ "$p" =~ ^([A-Za-z]):[/\\] ]]; then
+    local drive="${BASH_REMATCH[1]}"
+    p="/${drive,,}${p:2}"
+    p="${p//\\//}"
+  fi
+  echo "$p"
+}
+
 # Auto-start daemon if not reachable
 ensure_daemon() {
   # Step 1: Quick health check — if reachable, we're done
@@ -164,7 +175,7 @@ case "$HOOK_EVENT" in
 
   UserPromptSubmit)
     post_json "/sessions/${SESSION_ID}/activity" \
-      '{"details": "Thinking...", "smallImageKey": "thinking", "smallImageText": "Processing your prompt", "priority": "hook"}'
+      '{"details": "Thinking...", "smallImageKey": "thinking", "smallImageText": "Processing prompt", "priority": "hook"}'
     ;;
 
   PreToolUse)
@@ -251,7 +262,7 @@ case "$HOOK_EVENT" in
     ;;
 
   Stop)
-    TRANSCRIPT=$(echo "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null) || true
+    TRANSCRIPT=$(normalize_path "$(echo "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)") || true
     TOKENS=0
     if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
       TOKENS=$(jq -r 'select(.message.role == "assistant" and .message.usage != null)

@@ -11,6 +11,7 @@ const SessionActivitySchema = z.object({
   details: z.string().max(128).nullable().optional(),
   smallImageKey: z.string().optional(),
   smallImageText: z.string().optional(),
+  tokenCount: z.number().int().nonnegative().optional(),
 });
 
 type HealthProvider = () => {

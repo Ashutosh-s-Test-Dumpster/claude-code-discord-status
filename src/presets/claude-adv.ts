@@ -339,7 +339,7 @@ export const claudeAdvPreset: MessagePreset = {
       'Ready to continue',
       'Session active',
       'Available',
-      'Ready when you are',
+
       'Awaiting the next prompt',
       'In between tasks',
       'Monitoring',

@@ -83,12 +83,7 @@ async function readTokensFromTranscript(transcriptPath: string): Promise<number>
         const entry = JSON.parse(line);
         const usage = entry?.message?.usage;
         if (entry?.message?.role === 'assistant' && usage) {
-          return (
-            (usage.input_tokens ?? 0) +
-            (usage.output_tokens ?? 0) +
-            (usage.cache_creation_input_tokens ?? 0) +
-            (usage.cache_read_input_tokens ?? 0)
-          );
+          return usage.output_tokens ?? 0;
         }
       } catch {
         // skip malformed lines
@@ -283,7 +278,7 @@ export async function processHookEvent(raw: string): Promise<void> {
       await postJson(`${daemonUrl}/sessions/${sessionId}/activity`, {
         details: 'Thinking...',
         smallImageKey: 'thinking',
-        smallImageText: 'Processing your prompt',
+        smallImageText: 'Processing prompt',
         priority: 'hook',
       });
       break;
