@@ -214,7 +214,7 @@ export const claudeAdvPreset: MessagePreset = {
       'Working backwards through the stack',
       'Scanning for side effects',
       'Following the dependency chain',
-      'Reading someone else\'s code',
+      "Reading someone else's code",
       'Looking for where this is defined',
       'Narrowing down the search',
       'Tracing the origin',
@@ -326,7 +326,7 @@ export const claudeAdvPreset: MessagePreset = {
       'Checking the type definitions',
       'Following the data flow',
       'Loading the mental model',
-      'Loading someone else\'s mental model',
+      "Loading someone else's mental model",
     ],
 
     idle: [

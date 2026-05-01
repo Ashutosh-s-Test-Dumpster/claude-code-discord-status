@@ -25,4 +25,6 @@ export interface MessagePreset {
   multiSessionTooltips: string[];
   /** When true, single-session state line shows live stats instead of a rotating message */
   showSingleSessionStats?: boolean;
+  /** When false, project/repo name is hidden from the single-session stats line (default: true) */
+  showProjectName?: boolean;
 }

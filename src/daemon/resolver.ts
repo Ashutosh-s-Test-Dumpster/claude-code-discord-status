@@ -35,7 +35,7 @@ function buildSingleSessionActivity(
   const details = stablePick(pool, session.startedAt, now);
 
   const state = preset.showSingleSessionStats
-    ? formatSingleSessionStatsLine(session, now)
+    ? formatSingleSessionStatsLine(session, preset.showProjectName !== false, now)
     : stablePick(preset.singleSessionStateMessages, session.startedAt + 1, now);
 
   return {
@@ -51,10 +51,14 @@ function buildSingleSessionActivity(
   };
 }
 
-function formatSingleSessionStatsLine(session: Session, now: number): string {
+function formatSingleSessionStatsLine(
+  session: Session,
+  showProjectName: boolean,
+  now: number,
+): string {
   const parts: string[] = [];
 
-  if (session.projectName) parts.push(session.projectName);
+  if (showProjectName && session.projectName) parts.push(session.projectName);
 
   const { edits, commands, searches, reads, thinks } = session.activityCounts;
   if (edits > 0) parts.push(`${edits} ${edits === 1 ? 'edit' : 'edits'}`);
@@ -62,16 +66,6 @@ function formatSingleSessionStatsLine(session: Session, now: number): string {
   if (searches > 0) parts.push(`${searches} ${searches === 1 ? 'search' : 'searches'}`);
   if (reads > 0) parts.push(`${reads} ${reads === 1 ? 'read' : 'reads'}`);
   if (thinks > 0) parts.push(`${thinks} ${thinks === 1 ? 'think' : 'thinks'}`);
-
-  const elapsedMs = now - session.startedAt;
-  const elapsedMin = Math.floor(elapsedMs / 60_000);
-  if (elapsedMin >= 60) {
-    const h = Math.floor(elapsedMin / 60);
-    const m = elapsedMin % 60;
-    parts.push(m > 0 ? `${h}h ${m}m` : `${h}h`);
-  } else if (elapsedMin > 0) {
-    parts.push(`${elapsedMin}m`);
-  }
 
   const joined = parts.join(' · ');
   if (joined.length < MIN_FIELD_LENGTH) return 'Session started';
@@ -95,7 +89,7 @@ function buildMultiSessionActivity(
     details = details.replace(/\{n\}/g, String(count));
   }
 
-  const state = formatStatsLine(sessions, now);
+  const state = formatStatsLine(sessions);
   const mostRecent = getMostRecentSession(sessions)!;
   const smallImageKey = mostRecent.smallImageKey;
   const smallImageText = stablePick(preset.multiSessionTooltips, seed + 1, now);
@@ -119,7 +113,7 @@ export function stablePick(pool: string[], seed: number, now: number): string {
   return pool[index];
 }
 
-export function formatStatsLine(sessions: Session[], now: number): string {
+export function formatStatsLine(sessions: Session[]): string {
   const totals: ActivityCounts = { edits: 0, commands: 0, searches: 0, reads: 0, thinks: 0 };
 
   for (const session of sessions) {
@@ -138,18 +132,6 @@ export function formatStatsLine(sessions: Session[], now: number): string {
     parts.push(`${totals.searches} ${totals.searches === 1 ? 'search' : 'searches'}`);
   if (totals.reads > 0) parts.push(`${totals.reads} ${totals.reads === 1 ? 'read' : 'reads'}`);
   if (totals.thinks > 0) parts.push(`${totals.thinks} ${totals.thinks === 1 ? 'think' : 'thinks'}`);
-
-  // Append elapsed time from earliest session
-  const earliest = sessions.reduce((a, b) => (a.startedAt < b.startedAt ? a : b));
-  const elapsedMs = now - earliest.startedAt;
-  const elapsedMin = Math.floor(elapsedMs / 60_000);
-  if (elapsedMin >= 60) {
-    const h = Math.floor(elapsedMin / 60);
-    const m = elapsedMin % 60;
-    parts.push(m > 0 ? `${h}h ${m}m deep` : `${h}h deep`);
-  } else if (elapsedMin > 0) {
-    parts.push(`${elapsedMin}m deep`);
-  }
 
   const joined = parts.join(' \u00b7 ');
   if (joined.length === 0) return 'Just getting started';

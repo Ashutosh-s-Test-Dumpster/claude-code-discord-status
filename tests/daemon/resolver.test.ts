@@ -196,7 +196,6 @@ describe('resolvePresence', () => {
 
       expect(activity.state).toContain('28 edits');
       expect(activity.state).toContain('8 cmds');
-      expect(activity.state).toContain('2h 15m deep');
     });
 
     it('uses most recent session smallImageKey', () => {
@@ -335,7 +334,7 @@ describe('formatStatsLine', () => {
         activityCounts: makeCounts({ edits: 10, commands: 3 }),
       }),
     ];
-    const result = formatStatsLine(sessions, now);
+    const result = formatStatsLine(sessions);
 
     expect(result).toContain('10 edits');
     expect(result).toContain('3 cmds');
@@ -351,7 +350,7 @@ describe('formatStatsLine', () => {
         activityCounts: makeCounts({ edits: 1, commands: 1, searches: 1 }),
       }),
     ];
-    const result = formatStatsLine(sessions, now);
+    const result = formatStatsLine(sessions);
 
     expect(result).toContain('1 edit');
     expect(result).toContain('1 cmd');
@@ -368,40 +367,12 @@ describe('formatStatsLine', () => {
         activityCounts: makeCounts({ edits: 5, searches: 3, reads: 2, thinks: 4 }),
       }),
     ];
-    const result = formatStatsLine(sessions, now);
+    const result = formatStatsLine(sessions);
 
     expect(result).toContain('5 edits');
     expect(result).toContain('3 searches');
     expect(result).toContain('2 reads');
     expect(result).toContain('4 thinks');
-  });
-
-  it('shows elapsed time in minutes', () => {
-    const sessions = [
-      makeSession({ startedAt: now - 15 * 60_000, activityCounts: makeCounts({ edits: 1 }) }),
-    ];
-    const result = formatStatsLine(sessions, now);
-
-    expect(result).toContain('15m deep');
-  });
-
-  it('shows elapsed time in hours and minutes', () => {
-    const sessions = [
-      makeSession({ startedAt: now - 135 * 60_000, activityCounts: makeCounts({ edits: 1 }) }),
-    ];
-    const result = formatStatsLine(sessions, now);
-
-    expect(result).toContain('2h 15m deep');
-  });
-
-  it('shows hours only when minutes are 0', () => {
-    const sessions = [
-      makeSession({ startedAt: now - 120 * 60_000, activityCounts: makeCounts({ edits: 1 }) }),
-    ];
-    const result = formatStatsLine(sessions, now);
-
-    expect(result).toContain('2h deep');
-    expect(result).not.toContain('0m');
   });
 
   it('aggregates across sessions', () => {
@@ -417,7 +388,7 @@ describe('formatStatsLine', () => {
         activityCounts: makeCounts({ edits: 5, commands: 3 }),
       }),
     ];
-    const result = formatStatsLine(sessions, now);
+    const result = formatStatsLine(sessions);
 
     expect(result).toContain('15 edits');
     expect(result).toContain('5 cmds');
@@ -430,14 +401,14 @@ describe('formatStatsLine', () => {
         activityCounts: makeCounts({ edits: 5, commands: 3 }),
       }),
     ];
-    const result = formatStatsLine(sessions, now);
+    const result = formatStatsLine(sessions);
 
     expect(result).toContain(' \u00b7 ');
   });
 
-  it('returns fallback when no stats and no elapsed time', () => {
+  it('returns fallback when no stats', () => {
     const sessions = [makeSession({ startedAt: now })];
-    const result = formatStatsLine(sessions, now);
+    const result = formatStatsLine(sessions);
 
     expect(result).toBe('Just getting started');
   });
@@ -456,7 +427,7 @@ describe('formatStatsLine', () => {
         }),
       }),
     ];
-    const result = formatStatsLine(sessions, now);
+    const result = formatStatsLine(sessions);
 
     expect(result.length).toBeLessThanOrEqual(128);
   });
