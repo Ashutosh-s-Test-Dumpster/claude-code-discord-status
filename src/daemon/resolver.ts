@@ -32,20 +32,20 @@ function buildSingleSessionActivity(
 ): DiscordActivity {
   const pool =
     preset.singleSessionDetails[session.smallImageKey] ?? preset.singleSessionDetailsFallback;
-  const details = stablePick(pool, session.startedAt, now);
+  const flavorText = stablePick(pool, session.lastActivityAt, now);
 
   const state = preset.showSingleSessionStats
     ? formatSingleSessionStatsLine(session)
     : stablePick(preset.singleSessionStateMessages, session.startedAt + 1, now);
 
   return {
-    details,
+    details: sanitizeField(session.smallImageText) ?? flavorText,
     state,
     largeImageKey: LARGE_IMAGE_KEY,
     largeImageText: LARGE_IMAGE_TEXT,
     largeImageUrl: LARGE_IMAGE_URL,
     smallImageKey: session.smallImageKey,
-    smallImageText: sanitizeField(session.smallImageText),
+    smallImageText: sanitizeField(flavorText),
     smallImageUrl: session.smallImageKey ? SMALL_IMAGE_URLS[session.smallImageKey] : undefined,
     startTimestamp: session.startedAt,
   };

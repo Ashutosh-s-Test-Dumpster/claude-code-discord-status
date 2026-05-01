@@ -232,9 +232,17 @@ case "$HOOK_EVENT" in
 
     # Override ICON_TEXT with actual tool target when available
     case "$TOOL_NAME" in
-      Write|Edit|Read)
+      Write)
         _FILE=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null) || true
-        if [ -n "$_FILE" ]; then ICON_TEXT=$(basename "$_FILE"); fi
+        if [ -n "$_FILE" ]; then ICON_TEXT="Writing $(basename "$_FILE")"; fi
+        ;;
+      Edit)
+        _FILE=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null) || true
+        if [ -n "$_FILE" ]; then ICON_TEXT="Editing $(basename "$_FILE")"; fi
+        ;;
+      Read)
+        _FILE=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null) || true
+        if [ -n "$_FILE" ]; then ICON_TEXT="Reading $(basename "$_FILE")"; fi
         ;;
       Bash)
         _CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | cut -c1-80) || true
@@ -250,7 +258,7 @@ case "$HOOK_EVENT" in
         ;;
       WebFetch)
         _URL=$(echo "$INPUT" | jq -r '.tool_input.url // empty' 2>/dev/null | cut -c1-80) || true
-        if [ -n "$_URL" ]; then ICON_TEXT="$_URL"; fi
+        if [ -n "$_URL" ]; then ICON_TEXT="Searching $_URL"; fi
         ;;
     esac
 

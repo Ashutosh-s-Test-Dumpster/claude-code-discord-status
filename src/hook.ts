@@ -38,10 +38,18 @@ function extractToolTarget(
   const str = (v: unknown) => (typeof v === 'string' ? v : '');
 
   switch (toolName) {
-    case 'Write':
-    case 'Edit':
-    case 'Read':
-      return basename(str(toolInput.file_path)) || undefined;
+    case 'Write': {
+      const f = basename(str(toolInput.file_path));
+      return f ? `Writing ${f}` : undefined;
+    }
+    case 'Edit': {
+      const f = basename(str(toolInput.file_path));
+      return f ? `Editing ${f}` : undefined;
+    }
+    case 'Read': {
+      const f = basename(str(toolInput.file_path));
+      return f ? `Reading ${f}` : undefined;
+    }
     case 'Bash':
       return str(toolInput.command).slice(0, 80) || undefined;
     case 'Grep':
@@ -50,11 +58,7 @@ function extractToolTarget(
     case 'WebSearch':
       return str(toolInput.query) ? `Searching ${str(toolInput.query).slice(0, 74)}` : undefined;
     case 'WebFetch':
-      try {
-        return new URL(str(toolInput.url)).hostname || undefined;
-      } catch {
-        return str(toolInput.url).slice(0, 80) || undefined;
-      }
+      return str(toolInput.url) ? `Searching ${str(toolInput.url).slice(0, 74)}` : undefined;
     default:
       return undefined;
   }
