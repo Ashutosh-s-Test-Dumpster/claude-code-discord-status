@@ -15,8 +15,9 @@
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "reinstall-hook": "cp src/hooks/claude-hook.sh \"${HOME}/.claude-presence/claude-hook.sh\" && echo 'Hook updated.'",
-    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "unix-deploy": "npm run build && npm install -g . && cp src/hooks/claude-hook.sh \"${HOME}/.claude-presence/claude-hook.sh\" && node dist/cli.js stop; node dist/cli.js start -d",
+    "windows-deploy": "npm run build && npm install -g . && node dist/cli.js stop & node dist/cli.js start -d"
   },
   "keywords": [
     "claude",
