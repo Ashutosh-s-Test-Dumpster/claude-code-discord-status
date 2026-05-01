@@ -265,18 +265,15 @@ case "$HOOK_EVENT" in
     TRANSCRIPT=$(normalize_path "$(echo "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)") || true
     TOKENS=0
     if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
-      TOKENS=$(jq -r 'select(.message.role == "assistant" and .message.usage != null)
-        | (.message.usage.input_tokens // 0)
-        + (.message.usage.output_tokens // 0)
-        + (.message.usage.cache_creation_input_tokens // 0)
-        + (.message.usage.cache_read_input_tokens // 0)' "$TRANSCRIPT" 2>/dev/null | tail -1) || TOKENS=0
+      TOKENS=$(jq -r 'select(.message.role == "assistant" and .message.usage != null) | (.message.usage.output_tokens // 0)' "$TRANSCRIPT" 2>/dev/null | tail -1) || TOKENS=0
     fi
+    SESSION_META=", \"pid\": ${PPID}, \"projectPath\": \"${CWD}\""
     if [ "${TOKENS:-0}" -gt 0 ] 2>/dev/null; then
       post_json "/sessions/${SESSION_ID}/activity" \
-        "{\"details\": \"Finished\", \"smallImageKey\": \"idle\", \"smallImageText\": \"Idle\", \"priority\": \"hook\", \"tokenCount\": ${TOKENS}}"
+        "{\"details\": \"Finished\", \"smallImageKey\": \"idle\", \"smallImageText\": \"Idle\", \"priority\": \"hook\", \"tokenCount\": ${TOKENS}${SESSION_META}}"
     else
       post_json "/sessions/${SESSION_ID}/activity" \
-        '{"details": "Finished", "smallImageKey": "idle", "smallImageText": "Idle", "priority": "hook"}'
+        "{\"details\": \"Finished\", \"smallImageKey\": \"idle\", \"smallImageText\": \"Idle\", \"priority\": \"hook\"${SESSION_META}}"
     fi
     ;;
 
