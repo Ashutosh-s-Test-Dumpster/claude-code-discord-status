@@ -167,6 +167,100 @@ describe('processHookEvent', () => {
     });
   });
 
+  it('uses file basename as smallImageText for Edit', async () => {
+    await processHookEvent(
+      makeInput({
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Edit',
+        tool_input: { file_path: '/home/user/project/src/daemon/resolver.ts' },
+      }),
+    );
+    expect(fetchCalls[0].body).toMatchObject({ smallImageText: 'resolver.ts' });
+  });
+
+  it('uses file basename as smallImageText for Read', async () => {
+    await processHookEvent(
+      makeInput({
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Read',
+        tool_input: { file_path: '/home/user/project/src/hook.ts' },
+      }),
+    );
+    expect(fetchCalls[0].body).toMatchObject({ smallImageText: 'hook.ts' });
+  });
+
+  it('uses command as smallImageText for Bash', async () => {
+    await processHookEvent(
+      makeInput({
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Bash',
+        tool_input: { command: 'npm test' },
+      }),
+    );
+    expect(fetchCalls[0].body).toMatchObject({ smallImageText: 'npm test' });
+  });
+
+  it('truncates long Bash commands to 80 chars', async () => {
+    const longCmd = 'a'.repeat(100);
+    await processHookEvent(
+      makeInput({
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Bash',
+        tool_input: { command: longCmd },
+      }),
+    );
+    expect(fetchCalls[0].body.smallImageText).toHaveLength(80);
+  });
+
+  it('uses pattern as smallImageText for Grep', async () => {
+    await processHookEvent(
+      makeInput({
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Grep',
+        tool_input: { pattern: 'resolvePresence' },
+      }),
+    );
+    expect(fetchCalls[0].body).toMatchObject({ smallImageText: 'resolvePresence' });
+  });
+
+  it('uses pattern as smallImageText for Glob', async () => {
+    await processHookEvent(
+      makeInput({
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Glob',
+        tool_input: { pattern: 'src/**/*.ts' },
+      }),
+    );
+    expect(fetchCalls[0].body).toMatchObject({ smallImageText: 'src/**/*.ts' });
+  });
+
+  it('uses query as smallImageText for WebSearch', async () => {
+    await processHookEvent(
+      makeInput({
+        hook_event_name: 'PreToolUse',
+        tool_name: 'WebSearch',
+        tool_input: { query: 'discord rich presence api' },
+      }),
+    );
+    expect(fetchCalls[0].body).toMatchObject({ smallImageText: 'discord rich presence api' });
+  });
+
+  it('uses hostname as smallImageText for WebFetch', async () => {
+    await processHookEvent(
+      makeInput({
+        hook_event_name: 'PreToolUse',
+        tool_name: 'WebFetch',
+        tool_input: { url: 'https://discord.com/developers/docs' },
+      }),
+    );
+    expect(fetchCalls[0].body).toMatchObject({ smallImageText: 'discord.com' });
+  });
+
+  it('falls back to generic iconText when tool_input is absent', async () => {
+    await processHookEvent(makeInput({ hook_event_name: 'PreToolUse', tool_name: 'Bash' }));
+    expect(fetchCalls[0].body).toMatchObject({ smallImageText: 'Running a command' });
+  });
+
   it('sends idle for Stop', async () => {
     await processHookEvent(makeInput({ hook_event_name: 'Stop' }));
 

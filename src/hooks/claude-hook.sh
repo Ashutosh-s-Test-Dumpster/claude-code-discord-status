@@ -209,6 +209,30 @@ case "$HOOK_EVENT" in
         ;;
     esac
 
+    # Override ICON_TEXT with actual tool target when available
+    case "$TOOL_NAME" in
+      Write|Edit|Read)
+        _FILE=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null) || true
+        if [ -n "$_FILE" ]; then ICON_TEXT=$(basename "$_FILE"); fi
+        ;;
+      Bash)
+        _CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | cut -c1-80) || true
+        if [ -n "$_CMD" ]; then ICON_TEXT="$_CMD"; fi
+        ;;
+      Grep|Glob)
+        _PAT=$(echo "$INPUT" | jq -r '.tool_input.pattern // empty' 2>/dev/null) || true
+        if [ -n "$_PAT" ]; then ICON_TEXT="$_PAT"; fi
+        ;;
+      WebSearch)
+        _Q=$(echo "$INPUT" | jq -r '.tool_input.query // empty' 2>/dev/null | cut -c1-80) || true
+        if [ -n "$_Q" ]; then ICON_TEXT="$_Q"; fi
+        ;;
+      WebFetch)
+        _URL=$(echo "$INPUT" | jq -r '.tool_input.url // empty' 2>/dev/null | cut -c1-80) || true
+        if [ -n "$_URL" ]; then ICON_TEXT="$_URL"; fi
+        ;;
+    esac
+
     # Truncate details to 128 chars
     DETAILS=$(echo "$DETAILS" | cut -c1-128)
 

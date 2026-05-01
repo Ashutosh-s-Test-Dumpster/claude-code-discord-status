@@ -5,7 +5,7 @@
 
 import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync, statSync } from 'node:fs';
 import { spawn } from 'node:child_process';
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   CONFIG_DIR,
@@ -23,8 +23,39 @@ interface HookInput {
   session_id?: string;
   hook_event_name?: string;
   tool_name?: string;
+  tool_input?: Record<string, unknown>;
   cwd?: string;
   matcher?: string;
+}
+
+function extractToolTarget(
+  toolName: string,
+  toolInput: Record<string, unknown> | undefined,
+): string | undefined {
+  if (!toolInput) return undefined;
+  const str = (v: unknown) => (typeof v === 'string' ? v : '');
+
+  switch (toolName) {
+    case 'Write':
+    case 'Edit':
+    case 'Read':
+      return basename(str(toolInput.file_path)) || undefined;
+    case 'Bash':
+      return str(toolInput.command).slice(0, 80) || undefined;
+    case 'Grep':
+    case 'Glob':
+      return str(toolInput.pattern) || undefined;
+    case 'WebSearch':
+      return str(toolInput.query).slice(0, 80) || undefined;
+    case 'WebFetch':
+      try {
+        return new URL(str(toolInput.url)).hostname || undefined;
+      } catch {
+        return str(toolInput.url).slice(0, 80) || undefined;
+      }
+    default:
+      return undefined;
+  }
 }
 
 const TOOL_MAP: Record<string, { details: string; icon: string; iconText: string }> = {
@@ -235,10 +266,11 @@ export async function processHookEvent(raw: string): Promise<void> {
         iconText: 'Working',
       };
       const details = tool.details.slice(0, 128);
+      const target = extractToolTarget(toolName, input.tool_input);
       await postJson(`${daemonUrl}/sessions/${sessionId}/activity`, {
         details,
         smallImageKey: tool.icon,
-        smallImageText: tool.iconText,
+        smallImageText: target ?? tool.iconText,
         priority: 'hook',
       });
       break;
