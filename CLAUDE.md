@@ -4,7 +4,7 @@
 
 Discord Rich Presence integration for Claude Code. Shows what Claude is doing as a live activity card on Discord.
 
-Two components: a **daemon** (background process holding the Discord RPC connection) and **hooks** (bash scripts fired by Claude Code lifecycle events).
+Two components: a **daemon** (background process holding the Discord RPC connection) and **hooks** (scripts fired by Claude Code lifecycle events). There are two hook implementations: a bash script (`claude-hook.sh`) for macOS/Linux and a Node.js script (`hook.ts`) for Windows (and as a cross-platform fallback).
 
 ## Tech Stack
 
@@ -19,13 +19,15 @@ Two components: a **daemon** (background process holding the Discord RPC connect
 ## Commands
 
 ```bash
-npm run build        # Build with tsup
-npm test             # Run tests (vitest run)
-npm run test:watch   # Watch mode
-npm run typecheck    # tsc --noEmit
-npm run lint         # ESLint
-npm run format       # Prettier write
-npm run format:check # Prettier check
+npm run build          # Build with tsup
+npm test               # Run tests (vitest run)
+npm run test:watch     # Watch mode
+npm run typecheck      # tsc --noEmit
+npm run lint           # ESLint
+npm run format         # Prettier write
+npm run format:check   # Prettier check
+npm run unix-deploy    # Build, install globally, restart daemon (macOS/Linux)
+npm run windows-deploy # Build, install globally, restart daemon (Windows)
 ```
 
 Always run `npm run format && npm run typecheck && npm test` before committing.
@@ -35,6 +37,9 @@ Always run `npm run format && npm run typecheck && npm test` before committing.
 ```
 src/
 ├── cli.ts                 # CLI entry — setup, start, stop, status, uninstall
+├── cli-utils.ts           # Shared CLI helpers
+├── doctor.ts              # Doctor command — diagnose and auto-fix issues
+├── hook.ts                # Node.js hook — Windows/cross-platform lifecycle handler
 ├── daemon/
 │   ├── index.ts           # Daemon entry — wires registry, discord, server
 │   ├── server.ts          # HTTP API (health, sessions CRUD)
@@ -43,18 +48,40 @@ src/
 │   └── discord.ts         # Discord RPC wrapper with auto-reconnect
 ├── hooks/
 │   └── claude-hook.sh     # Bash hook script — maps lifecycle events to HTTP POSTs
+├── presets/
+│   ├── types.ts           # MessagePreset interface
+│   ├── index.ts           # Preset registry and loader
+│   ├── gen-z.ts           # Default preset (quirky, meme-flavored)
+│   ├── minimal.ts         # Clean, minimal messages
+│   ├── professional.ts    # Professional tone
+│   ├── dev-humor.ts       # Developer humor
+│   ├── chaotic.ts         # Chaotic energy
+│   └── claude-adv.ts      # Claude adventure theme
 └── shared/
     ├── types.ts           # All interfaces and types
     ├── constants.ts       # Ports, timeouts, image keys, message pools
-    └── config.ts          # Config file + env var loader
+    ├── config.ts          # Config file + env var loader
+    ├── migration.ts       # Legacy path migration (~/.claude-discord-status → ~/.claude-presence)
+    ├── update-checker.ts  # npm registry version check
+    ├── changelog.ts       # Changelog fetch and display
+    └── version.ts         # Package version
 
 tests/
+├── hook.test.ts           # Node.js hook unit tests
+├── cli/
+│   ├── hook-config.test.ts
+│   ├── migration.test.ts
+│   └── doctor.test.ts
 ├── daemon/
 │   ├── resolver.test.ts   # Presence resolution, stats line, mode detection
 │   ├── sessions.test.ts   # Session registry, activity counters, stale cleanup
 │   └── server.test.ts     # HTTP API integration tests
+├── presets/
+│   └── presets.test.ts    # Preset structure validation
 └── shared/
-    └── config.test.ts     # Config loading, env overrides
+    ├── config.test.ts     # Config loading, env overrides
+    ├── update-checker.test.ts
+    └── changelog.test.ts
 ```
 
 ## Architecture
@@ -62,10 +89,10 @@ tests/
 ### Data Flow
 
 ```
-Claude Code → Hook (bash) → HTTP POST → Daemon → Discord RPC
+Claude Code → Hook (bash or Node.js) → HTTP POST → Daemon → Discord RPC
 ```
 
-1. **Hooks** fire on lifecycle events (SessionStart, PreToolUse, Stop, etc.) and POST to the daemon's HTTP API
+1. **Hooks** fire on lifecycle events (SessionStart, PreToolUse, Stop, etc.) and POST to the daemon's HTTP API. Both hooks auto-start the daemon if it's not running.
 2. **Daemon** maintains a `SessionRegistry`, runs a `resolvePresence()` pass on every change, and pushes the result to Discord
 
 ### Key Concepts
@@ -73,26 +100,33 @@ Claude Code → Hook (bash) → HTTP POST → Daemon → Discord RPC
 - **Session**: One Claude Code instance. Tracked by session ID, has a project path, PID, activity counters, and current status
 - **ActivityCounts**: Per-session counters (edits, commands, searches, reads, thinks) incremented based on `smallImageKey`
 - **Session Deduplication**: `/sessions/:id/start` deduplicates by `projectPath + pid` to avoid duplicate sessions from the same Claude instance
+- **Preset**: A `MessagePreset` object that supplies all message pools. Selected via config or `CLAUDE_PRESENCE_PRESET` env var. Default is `minimal`.
 
 ### Single vs Multi-Session
 
-- **Single session (1)**: Shows current action + project name. `buildSingleSessionActivity()` — do NOT modify this path
-- **Multi-session (2+)**: Shows quirky tier-based messages + aggregate stats. `buildMultiSessionActivity()` with:
+- **Single session (1)**: `buildSingleSessionActivity()` — `details` shows the session's current `smallImageText` (e.g. "Editing hook.ts"), `smallImageText` (icon tooltip) shows a rotating flavor line from the preset pool keyed by `smallImageKey`
+- **Multi-session (2+)**: `buildMultiSessionActivity()` — shows quirky tier-based messages + aggregate stats:
   - `stablePick()` — Knuth multiplicative hash over 5-minute time buckets for flicker-free message rotation
-  - `formatStatsLine()` — Aggregates activity counts across sessions with elapsed time
+  - `formatStatsLine()` — Aggregates activity counts across sessions
   - `detectDominantMode()` — >50% threshold for dominant activity, otherwise "mixed"
 
 ### Resolver
 
-`resolvePresence(sessions, now?)` is the single entry point. It returns a `DiscordActivity` or `null`. The `now` parameter exists for test determinism — always default in production.
+`resolvePresence(sessions, preset, now?)` is the single entry point. It returns a `DiscordActivity` or `null`. The `now` parameter exists for test determinism — always default in production.
+
+### Token Counting
+
+The `Stop` hook reads `output_tokens` from the transcript JSONL and **sums across all assistant turns** (not just the last). Cache tokens are excluded.
 
 ### Constants
 
 Message pools in `constants.ts`:
+- `SINGLE_SESSION_DETAILS` — Per-`smallImageKey` flavor pools for single-session `smallImageText`
+- `SINGLE_SESSION_DETAILS_FALLBACK` — Fallback pool when `smallImageKey` is unrecognized
+- `SINGLE_SESSION_STATE_MESSAGES` — Rotating state line messages
 - `MULTI_SESSION_MESSAGES` — Keyed by session count (2, 3, 4)
 - `MULTI_SESSION_MESSAGES_OVERFLOW` — For 5+ sessions, uses `{n}` placeholder
 - `MULTI_SESSION_TOOLTIPS` — Hover text easter eggs
-- `MODE_FLAVOR` — Per-activity-mode flavor text
 - `MESSAGE_ROTATION_INTERVAL` — 5 minutes between message rotations
 
 ## Conventions
@@ -127,11 +161,12 @@ All endpoints on `127.0.0.1:{port}`:
 
 ### Config Precedence
 
-Environment variables > config file > defaults:
-- `CLAUDE_DISCORD_CLIENT_ID` → `discordClientId`
-- `CLAUDE_DISCORD_PORT` → `daemonPort`
+Environment variables > config file > defaults. New `CLAUDE_PRESENCE_*` names take precedence; old `CLAUDE_DISCORD_*` names work as fallback:
+- `CLAUDE_PRESENCE_CLIENT_ID` / `CLAUDE_DISCORD_CLIENT_ID` → `discordClientId`
+- `CLAUDE_PRESENCE_PORT` / `CLAUDE_DISCORD_PORT` → `daemonPort`
+- `CLAUDE_PRESENCE_PRESET` / `CLAUDE_DISCORD_PRESET` → `preset`
 
-Config file: `~/.claude-discord-status/config.json`
+Config file: `~/.claude-presence/config.json` (legacy: `~/.claude-discord-status/config.json`, auto-migrated)
 
 ## Git
 
