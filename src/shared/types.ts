@@ -37,6 +37,8 @@ export interface SessionActivityRequest {
   smallImageKey?: string;
   smallImageText?: string;
   tokenCount?: number;
+  projectPath?: string;
+  pid?: number;
 }
 
 export interface DiscordActivity {

@@ -12,6 +12,8 @@ const SessionActivitySchema = z.object({
   smallImageKey: z.string().optional(),
   smallImageText: z.string().optional(),
   tokenCount: z.number().int().nonnegative().optional(),
+  projectPath: z.string().optional(),
+  pid: z.number().int().positive().optional(),
 });
 
 type HealthProvider = () => {
@@ -99,7 +101,14 @@ async function handleRequest(
         sendJson(res, 400, { error: 'Invalid request body', details: parsed.error.issues });
         return;
       }
-      const session = registry.updateActivity(sessionId, parsed.data);
+      let session = registry.updateActivity(sessionId, parsed.data);
+      if (!session && parsed.data.projectPath && parsed.data.pid) {
+        registry.startSession(sessionId, {
+          pid: parsed.data.pid,
+          projectPath: parsed.data.projectPath,
+        });
+        session = registry.updateActivity(sessionId, parsed.data);
+      }
       if (!session) {
         sendJson(res, 404, { error: 'Session not found' });
         return;

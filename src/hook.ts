@@ -254,6 +254,8 @@ export async function processHookEvent(raw: string): Promise<void> {
   // points back to the Claude Code process (or its immediate shell wrapper).
   const pid = process.ppid;
 
+  const sessionMeta = { pid, projectPath: cwd };
+
   switch (hookEvent) {
     case 'SessionStart': {
       const details = input.matcher === 'resume' ? 'Resuming session...' : 'Starting session...';
@@ -266,6 +268,7 @@ export async function processHookEvent(raw: string): Promise<void> {
         smallImageKey: 'starting',
         smallImageText: 'Starting up',
         priority: 'hook',
+        ...sessionMeta,
       });
       break;
     }
@@ -280,6 +283,7 @@ export async function processHookEvent(raw: string): Promise<void> {
         smallImageKey: 'thinking',
         smallImageText: 'Processing prompt',
         priority: 'hook',
+        ...sessionMeta,
       });
       break;
 
@@ -297,6 +301,7 @@ export async function processHookEvent(raw: string): Promise<void> {
         smallImageKey: tool.icon,
         smallImageText: target ?? tool.iconText,
         priority: 'hook',
+        ...sessionMeta,
       });
       break;
     }
@@ -311,6 +316,7 @@ export async function processHookEvent(raw: string): Promise<void> {
         smallImageText: 'Idle',
         priority: 'hook',
         ...(tokens > 0 && { tokenCount: tokens }),
+        ...sessionMeta,
       });
       break;
     }
@@ -321,6 +327,7 @@ export async function processHookEvent(raw: string): Promise<void> {
         smallImageKey: 'idle',
         smallImageText: 'Idle',
         priority: 'hook',
+        ...sessionMeta,
       });
       break;
 

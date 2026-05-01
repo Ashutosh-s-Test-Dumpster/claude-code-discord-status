@@ -33,7 +33,7 @@ export const DEFAULT_DISCORD_CLIENT_ID = '1472915568930848829';
 
 export const STALE_CHECK_INTERVAL = 30_000; // 30 seconds
 export const IDLE_TIMEOUT = 600_000; // 10 minutes
-export const REMOVE_TIMEOUT = 1_800_000; // 30 minutes
+export const REMOVE_TIMEOUT = 600_000; // 10 minutes
 export const RECONNECT_INTERVAL = 5_000; // 5 seconds
 
 export const AUTOSTART_LOCK_FILE = join(CONFIG_DIR, 'autostart.lock');
