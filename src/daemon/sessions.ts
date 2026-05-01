@@ -46,6 +46,7 @@ export class SessionRegistry {
       lastActivityAt: now,
       status: 'active',
       activityCounts: emptyActivityCounts(),
+      tokenCount: 0,
     };
     this.sessions.set(sessionId, session);
     this.notifyChange();
@@ -71,6 +72,10 @@ export class SessionRegistry {
     const counterKey = COUNTER_MAP[session.smallImageKey];
     if (counterKey) {
       session.activityCounts[counterKey]++;
+    }
+
+    if (request.tokenCount && request.tokenCount > 0) {
+      session.tokenCount += request.tokenCount;
     }
 
     session.lastActivityAt = now;

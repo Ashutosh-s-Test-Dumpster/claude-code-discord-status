@@ -241,8 +241,19 @@ case "$HOOK_EVENT" in
     ;;
 
   Stop)
-    post_json "/sessions/${SESSION_ID}/activity" \
-      '{"details": "Finished", "smallImageKey": "idle", "smallImageText": "Idle", "priority": "hook"}'
+    TOKENS=$(echo "$INPUT" | jq '
+      ( (.usage.input_tokens // 0)
+      + (.usage.output_tokens // 0)
+      + (.usage.cache_creation_input_tokens // 0)
+      + (.usage.cache_read_input_tokens // 0) )
+    ' 2>/dev/null) || TOKENS=0
+    if [ "${TOKENS:-0}" -gt 0 ] 2>/dev/null; then
+      post_json "/sessions/${SESSION_ID}/activity" \
+        "{\"details\": \"Finished\", \"smallImageKey\": \"idle\", \"smallImageText\": \"Idle\", \"priority\": \"hook\", \"tokenCount\": ${TOKENS}}"
+    else
+      post_json "/sessions/${SESSION_ID}/activity" \
+        '{"details": "Finished", "smallImageKey": "idle", "smallImageText": "Idle", "priority": "hook"}'
+    fi
     ;;
 
   Notification)

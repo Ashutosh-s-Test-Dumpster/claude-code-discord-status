@@ -271,6 +271,42 @@ describe('processHookEvent', () => {
     });
   });
 
+  it('sends tokenCount on Stop when usage is present', async () => {
+    await processHookEvent(
+      makeInput({
+        hook_event_name: 'Stop',
+        usage: { input_tokens: 1000, output_tokens: 500 },
+      }),
+    );
+
+    expect(fetchCalls[0].body).toMatchObject({
+      details: 'Finished',
+      tokenCount: 1500,
+    });
+  });
+
+  it('includes cache tokens in tokenCount on Stop', async () => {
+    await processHookEvent(
+      makeInput({
+        hook_event_name: 'Stop',
+        usage: {
+          input_tokens: 100,
+          output_tokens: 50,
+          cache_creation_input_tokens: 200,
+          cache_read_input_tokens: 150,
+        },
+      }),
+    );
+
+    expect(fetchCalls[0].body).toMatchObject({ tokenCount: 500 });
+  });
+
+  it('omits tokenCount on Stop when usage is absent', async () => {
+    await processHookEvent(makeInput({ hook_event_name: 'Stop' }));
+
+    expect(fetchCalls[0].body).not.toHaveProperty('tokenCount');
+  });
+
   it('sends idle for Notification', async () => {
     await processHookEvent(makeInput({ hook_event_name: 'Notification' }));
 

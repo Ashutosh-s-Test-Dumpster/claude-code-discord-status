@@ -24,6 +24,7 @@ export interface Session {
   lastActivityAt: number;
   status: SessionStatus;
   activityCounts: ActivityCounts;
+  tokenCount: number;
 }
 
 export interface SessionStartRequest {
@@ -35,6 +36,7 @@ export interface SessionActivityRequest {
   details?: string | null;
   smallImageKey?: string;
   smallImageText?: string;
+  tokenCount?: number;
 }
 
 export interface DiscordActivity {

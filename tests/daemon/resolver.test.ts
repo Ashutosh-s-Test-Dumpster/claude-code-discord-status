@@ -32,6 +32,7 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     lastActivityAt: Date.now(),
     status: 'active',
     activityCounts: emptyActivityCounts(),
+    tokenCount: 0,
     ...overrides,
   };
 }
@@ -185,17 +186,20 @@ describe('resolvePresence', () => {
           sessionId: 's1',
           startedAt: now - 135 * 60_000,
           activityCounts: makeCounts({ edits: 23, commands: 8 }),
+          tokenCount: 5000,
         }),
         makeSession({
           sessionId: 's2',
           startedAt: now - 100 * 60_000,
           activityCounts: makeCounts({ edits: 5 }),
+          tokenCount: 3000,
         }),
       ];
       const activity = resolvePresence(sessions, genZPreset, now)!;
 
       expect(activity.state).toContain('28 edits');
       expect(activity.state).toContain('8 cmds');
+      expect(activity.state).toContain('8.0k tokens');
     });
 
     it('uses most recent session smallImageKey', () => {
@@ -404,6 +408,39 @@ describe('formatStatsLine', () => {
     const result = formatStatsLine(sessions);
 
     expect(result).toContain(' \u00b7 ');
+  });
+
+  it('shows token count when present', () => {
+    const sessions = [makeSession({ tokenCount: 1234, activityCounts: makeCounts({ edits: 2 }) })];
+    const result = formatStatsLine(sessions);
+
+    expect(result).toContain('1.2k tokens');
+    expect(result).toContain('2 edits');
+  });
+
+  it('formats tokens under 1000 without k suffix', () => {
+    const sessions = [makeSession({ tokenCount: 850 })];
+    const result = formatStatsLine(sessions);
+
+    expect(result).toContain('850 tokens');
+  });
+
+  it('aggregates tokens across sessions', () => {
+    const sessions = [
+      makeSession({ sessionId: 's1', tokenCount: 3000 }),
+      makeSession({ sessionId: 's2', tokenCount: 2000 }),
+    ];
+    const result = formatStatsLine(sessions);
+
+    expect(result).toContain('5.0k tokens');
+  });
+
+  it('omits token count when zero', () => {
+    const sessions = [makeSession({ tokenCount: 0, activityCounts: makeCounts({ edits: 3 }) })];
+    const result = formatStatsLine(sessions);
+
+    expect(result).not.toContain('tokens');
+    expect(result).toContain('3 edits');
   });
 
   it('returns fallback when no stats', () => {

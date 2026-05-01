@@ -26,6 +26,12 @@ interface HookInput {
   tool_input?: Record<string, unknown>;
   cwd?: string;
   matcher?: string;
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_creation_input_tokens?: number;
+    cache_read_input_tokens?: number;
+  };
 }
 
 function extractToolTarget(
@@ -276,14 +282,21 @@ export async function processHookEvent(raw: string): Promise<void> {
       break;
     }
 
-    case 'Stop':
+    case 'Stop': {
+      const tokens =
+        (input.usage?.input_tokens ?? 0) +
+        (input.usage?.output_tokens ?? 0) +
+        (input.usage?.cache_creation_input_tokens ?? 0) +
+        (input.usage?.cache_read_input_tokens ?? 0);
       await postJson(`${daemonUrl}/sessions/${sessionId}/activity`, {
         details: 'Finished',
         smallImageKey: 'idle',
         smallImageText: 'Idle',
         priority: 'hook',
+        ...(tokens > 0 && { tokenCount: tokens }),
       });
       break;
+    }
 
     case 'Notification':
       await postJson(`${daemonUrl}/sessions/${sessionId}/activity`, {

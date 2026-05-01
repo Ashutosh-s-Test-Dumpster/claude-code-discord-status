@@ -35,7 +35,7 @@ function buildSingleSessionActivity(
   const details = stablePick(pool, session.startedAt, now);
 
   const state = preset.showSingleSessionStats
-    ? formatSingleSessionStatsLine(session, preset.showProjectName !== false, now)
+    ? formatSingleSessionStatsLine(session)
     : stablePick(preset.singleSessionStateMessages, session.startedAt + 1, now);
 
   return {
@@ -51,14 +51,15 @@ function buildSingleSessionActivity(
   };
 }
 
-function formatSingleSessionStatsLine(
-  session: Session,
-  showProjectName: boolean,
-  now: number,
-): string {
+function formatTokens(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k tokens`;
+  return `${n} tokens`;
+}
+
+function formatSingleSessionStatsLine(session: Session): string {
   const parts: string[] = [];
 
-  if (showProjectName && session.projectName) parts.push(session.projectName);
+  if (session.tokenCount > 0) parts.push(formatTokens(session.tokenCount));
 
   const { edits, commands, searches, reads, thinks } = session.activityCounts;
   if (edits > 0) parts.push(`${edits} ${edits === 1 ? 'edit' : 'edits'}`);
@@ -114,7 +115,14 @@ export function stablePick(pool: string[], seed: number, now: number): string {
 }
 
 export function formatStatsLine(sessions: Session[]): string {
-  const totals: ActivityCounts = { edits: 0, commands: 0, searches: 0, reads: 0, thinks: 0 };
+  const totals: ActivityCounts & { tokens: number } = {
+    edits: 0,
+    commands: 0,
+    searches: 0,
+    reads: 0,
+    thinks: 0,
+    tokens: 0,
+  };
 
   for (const session of sessions) {
     totals.edits += session.activityCounts.edits;
@@ -122,9 +130,11 @@ export function formatStatsLine(sessions: Session[]): string {
     totals.searches += session.activityCounts.searches;
     totals.reads += session.activityCounts.reads;
     totals.thinks += session.activityCounts.thinks;
+    totals.tokens += session.tokenCount;
   }
 
   const parts: string[] = [];
+  if (totals.tokens > 0) parts.push(formatTokens(totals.tokens));
   if (totals.edits > 0) parts.push(`${totals.edits} ${totals.edits === 1 ? 'edit' : 'edits'}`);
   if (totals.commands > 0)
     parts.push(`${totals.commands} ${totals.commands === 1 ? 'cmd' : 'cmds'}`);
