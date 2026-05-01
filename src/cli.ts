@@ -627,7 +627,7 @@ export function createHookConfig(hookCommand: string) {
       PreToolUse: [asyncHook('Write|Edit|Bash|Read|Grep|Glob|WebSearch|WebFetch|Task')],
       Stop: [asyncHook()],
       Notification: [asyncHook()],
-      SessionEnd: [asyncHook()],
+      SessionEnd: [{ hooks: [{ type: 'command', command: hookCommand, timeout: 5 }] }],
     },
   };
 }

@@ -164,7 +164,7 @@ case "$HOOK_EVENT" in
 
   UserPromptSubmit)
     post_json "/sessions/${SESSION_ID}/activity" \
-      '{"details": "Thinking...", "smallImageKey": "thinking", "smallImageText": "Thinking...", "priority": "hook"}'
+      '{"details": "Thinking...", "smallImageKey": "thinking", "smallImageText": "Processing your prompt", "priority": "hook"}'
     ;;
 
   PreToolUse)
@@ -172,7 +172,12 @@ case "$HOOK_EVENT" in
     ICON="coding"
     ICON_TEXT="Writing code"
     case "$TOOL_NAME" in
-      Write|Edit)
+      Write)
+        DETAILS="Writing a file"
+        ICON="coding"
+        ICON_TEXT="Writing code"
+        ;;
+      Edit)
         DETAILS="Editing a file"
         ICON="coding"
         ICON_TEXT="Writing code"
@@ -192,13 +197,18 @@ case "$HOOK_EVENT" in
         ICON="searching"
         ICON_TEXT="Searching"
         ;;
-      WebSearch|WebFetch)
+      WebSearch)
         DETAILS="Searching the web"
         ICON="searching"
         ICON_TEXT="Searching"
         ;;
+      WebFetch)
+        DETAILS="Fetching a page"
+        ICON="searching"
+        ICON_TEXT="Searching"
+        ;;
       Task)
-        DETAILS="Running a subtask"
+        DETAILS="Thinking..."
         ICON="thinking"
         ICON_TEXT="Thinking..."
         ;;
@@ -221,11 +231,11 @@ case "$HOOK_EVENT" in
         ;;
       Grep|Glob)
         _PAT=$(echo "$INPUT" | jq -r '.tool_input.pattern // empty' 2>/dev/null) || true
-        if [ -n "$_PAT" ]; then ICON_TEXT="$_PAT"; fi
+        if [ -n "$_PAT" ]; then ICON_TEXT="Searching $_PAT"; fi
         ;;
       WebSearch)
-        _Q=$(echo "$INPUT" | jq -r '.tool_input.query // empty' 2>/dev/null | cut -c1-80) || true
-        if [ -n "$_Q" ]; then ICON_TEXT="$_Q"; fi
+        _Q=$(echo "$INPUT" | jq -r '.tool_input.query // empty' 2>/dev/null | cut -c1-74) || true
+        if [ -n "$_Q" ]; then ICON_TEXT="Searching $_Q"; fi
         ;;
       WebFetch)
         _URL=$(echo "$INPUT" | jq -r '.tool_input.url // empty' 2>/dev/null | cut -c1-80) || true
@@ -241,12 +251,15 @@ case "$HOOK_EVENT" in
     ;;
 
   Stop)
-    TOKENS=$(echo "$INPUT" | jq '
-      ( (.usage.input_tokens // 0)
-      + (.usage.output_tokens // 0)
-      + (.usage.cache_creation_input_tokens // 0)
-      + (.usage.cache_read_input_tokens // 0) )
-    ' 2>/dev/null) || TOKENS=0
+    TRANSCRIPT=$(echo "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null) || true
+    TOKENS=0
+    if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
+      TOKENS=$(jq -r 'select(.message.role == "assistant" and .message.usage != null)
+        | (.message.usage.input_tokens // 0)
+        + (.message.usage.output_tokens // 0)
+        + (.message.usage.cache_creation_input_tokens // 0)
+        + (.message.usage.cache_read_input_tokens // 0)' "$TRANSCRIPT" 2>/dev/null | tail -1) || TOKENS=0
+    fi
     if [ "${TOKENS:-0}" -gt 0 ] 2>/dev/null; then
       post_json "/sessions/${SESSION_ID}/activity" \
         "{\"details\": \"Finished\", \"smallImageKey\": \"idle\", \"smallImageText\": \"Idle\", \"priority\": \"hook\", \"tokenCount\": ${TOKENS}}"

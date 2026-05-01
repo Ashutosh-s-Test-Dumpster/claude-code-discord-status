@@ -4,6 +4,7 @@
 // Always exits 0 to never block Claude Code.
 
 import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync, statSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,12 +27,7 @@ interface HookInput {
   tool_input?: Record<string, unknown>;
   cwd?: string;
   matcher?: string;
-  usage?: {
-    input_tokens?: number;
-    output_tokens?: number;
-    cache_creation_input_tokens?: number;
-    cache_read_input_tokens?: number;
-  };
+  transcript_path?: string;
 }
 
 function extractToolTarget(
@@ -50,9 +46,9 @@ function extractToolTarget(
       return str(toolInput.command).slice(0, 80) || undefined;
     case 'Grep':
     case 'Glob':
-      return str(toolInput.pattern) || undefined;
+      return str(toolInput.pattern) ? `Searching ${str(toolInput.pattern)}` : undefined;
     case 'WebSearch':
-      return str(toolInput.query).slice(0, 80) || undefined;
+      return str(toolInput.query) ? `Searching ${str(toolInput.query).slice(0, 74)}` : undefined;
     case 'WebFetch':
       try {
         return new URL(str(toolInput.url)).hostname || undefined;
@@ -65,16 +61,44 @@ function extractToolTarget(
 }
 
 const TOOL_MAP: Record<string, { details: string; icon: string; iconText: string }> = {
-  Write: { details: 'Editing a file', icon: 'coding', iconText: 'Writing code' },
+  Write: { details: 'Writing a file', icon: 'coding', iconText: 'Writing code' },
   Edit: { details: 'Editing a file', icon: 'coding', iconText: 'Writing code' },
   Bash: { details: 'Running a command', icon: 'terminal', iconText: 'Running a command' },
   Read: { details: 'Reading a file', icon: 'reading', iconText: 'Reading files' },
   Grep: { details: 'Searching codebase', icon: 'searching', iconText: 'Searching' },
   Glob: { details: 'Searching codebase', icon: 'searching', iconText: 'Searching' },
   WebSearch: { details: 'Searching the web', icon: 'searching', iconText: 'Searching' },
-  WebFetch: { details: 'Searching the web', icon: 'searching', iconText: 'Searching' },
-  Task: { details: 'Running a subtask', icon: 'thinking', iconText: 'Thinking...' },
+  WebFetch: { details: 'Fetching a page', icon: 'searching', iconText: 'Searching' },
+  Task: { details: 'Thinking...', icon: 'thinking', iconText: 'Thinking...' },
 };
+
+async function readTokensFromTranscript(transcriptPath: string): Promise<number> {
+  try {
+    const content = await readFile(transcriptPath, 'utf-8');
+    const lines = content.split('\n');
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      try {
+        const entry = JSON.parse(line);
+        const usage = entry?.message?.usage;
+        if (entry?.message?.role === 'assistant' && usage) {
+          return (
+            (usage.input_tokens ?? 0) +
+            (usage.output_tokens ?? 0) +
+            (usage.cache_creation_input_tokens ?? 0) +
+            (usage.cache_read_input_tokens ?? 0)
+          );
+        }
+      } catch {
+        // skip malformed lines
+      }
+    }
+  } catch {
+    // file unreadable
+  }
+  return 0;
+}
 
 function readStdin(): Promise<string> {
   return new Promise((resolve) => {
@@ -259,7 +283,7 @@ export async function processHookEvent(raw: string): Promise<void> {
       await postJson(`${daemonUrl}/sessions/${sessionId}/activity`, {
         details: 'Thinking...',
         smallImageKey: 'thinking',
-        smallImageText: 'Thinking...',
+        smallImageText: 'Processing your prompt',
         priority: 'hook',
       });
       break;
@@ -283,11 +307,9 @@ export async function processHookEvent(raw: string): Promise<void> {
     }
 
     case 'Stop': {
-      const tokens =
-        (input.usage?.input_tokens ?? 0) +
-        (input.usage?.output_tokens ?? 0) +
-        (input.usage?.cache_creation_input_tokens ?? 0) +
-        (input.usage?.cache_read_input_tokens ?? 0);
+      const tokens = input.transcript_path
+        ? await readTokensFromTranscript(input.transcript_path)
+        : 0;
       await postJson(`${daemonUrl}/sessions/${sessionId}/activity`, {
         details: 'Finished',
         smallImageKey: 'idle',

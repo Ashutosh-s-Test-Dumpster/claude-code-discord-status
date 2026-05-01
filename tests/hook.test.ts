@@ -19,6 +19,11 @@ vi.mock('node:fs', async () => {
   };
 });
 
+vi.mock('node:fs/promises', () => ({
+  readFile: vi.fn(async () => ''),
+}));
+
+import { readFile } from 'node:fs/promises';
 import { processHookEvent } from '../src/hook.js';
 
 function makeInput(overrides: Record<string, unknown> = {}) {
@@ -135,7 +140,7 @@ describe('processHookEvent', () => {
     await processHookEvent(makeInput({ hook_event_name: 'PreToolUse', tool_name: 'Write' }));
 
     expect(fetchCalls[0].body).toMatchObject({
-      details: 'Editing a file',
+      details: 'Writing a file',
       smallImageKey: 'coding',
     });
   });
@@ -162,7 +167,7 @@ describe('processHookEvent', () => {
     await processHookEvent(makeInput({ hook_event_name: 'PreToolUse', tool_name: 'Task' }));
 
     expect(fetchCalls[0].body).toMatchObject({
-      details: 'Running a subtask',
+      details: 'Thinking...',
       smallImageKey: 'thinking',
     });
   });
@@ -220,7 +225,7 @@ describe('processHookEvent', () => {
         tool_input: { pattern: 'resolvePresence' },
       }),
     );
-    expect(fetchCalls[0].body).toMatchObject({ smallImageText: 'resolvePresence' });
+    expect(fetchCalls[0].body).toMatchObject({ smallImageText: 'Searching resolvePresence' });
   });
 
   it('uses pattern as smallImageText for Glob', async () => {
@@ -231,7 +236,7 @@ describe('processHookEvent', () => {
         tool_input: { pattern: 'src/**/*.ts' },
       }),
     );
-    expect(fetchCalls[0].body).toMatchObject({ smallImageText: 'src/**/*.ts' });
+    expect(fetchCalls[0].body).toMatchObject({ smallImageText: 'Searching src/**/*.ts' });
   });
 
   it('uses query as smallImageText for WebSearch', async () => {
@@ -242,7 +247,9 @@ describe('processHookEvent', () => {
         tool_input: { query: 'discord rich presence api' },
       }),
     );
-    expect(fetchCalls[0].body).toMatchObject({ smallImageText: 'discord rich presence api' });
+    expect(fetchCalls[0].body).toMatchObject({
+      smallImageText: 'Searching discord rich presence api',
+    });
   });
 
   it('uses hostname as smallImageText for WebFetch', async () => {
@@ -271,37 +278,41 @@ describe('processHookEvent', () => {
     });
   });
 
-  it('sends tokenCount on Stop when usage is present', async () => {
+  it('sends tokenCount on Stop when transcript has usage', async () => {
+    const transcript = JSON.stringify({
+      message: { role: 'assistant', usage: { input_tokens: 1000, output_tokens: 500 } },
+    });
+    vi.mocked(readFile).mockResolvedValueOnce(transcript);
+
     await processHookEvent(
-      makeInput({
-        hook_event_name: 'Stop',
-        usage: { input_tokens: 1000, output_tokens: 500 },
-      }),
+      makeInput({ hook_event_name: 'Stop', transcript_path: '/tmp/transcript.jsonl' }),
     );
 
-    expect(fetchCalls[0].body).toMatchObject({
-      details: 'Finished',
-      tokenCount: 1500,
-    });
+    expect(fetchCalls[0].body).toMatchObject({ details: 'Finished', tokenCount: 1500 });
   });
 
   it('includes cache tokens in tokenCount on Stop', async () => {
-    await processHookEvent(
-      makeInput({
-        hook_event_name: 'Stop',
+    const transcript = JSON.stringify({
+      message: {
+        role: 'assistant',
         usage: {
           input_tokens: 100,
           output_tokens: 50,
           cache_creation_input_tokens: 200,
           cache_read_input_tokens: 150,
         },
-      }),
+      },
+    });
+    vi.mocked(readFile).mockResolvedValueOnce(transcript);
+
+    await processHookEvent(
+      makeInput({ hook_event_name: 'Stop', transcript_path: '/tmp/transcript.jsonl' }),
     );
 
     expect(fetchCalls[0].body).toMatchObject({ tokenCount: 500 });
   });
 
-  it('omits tokenCount on Stop when usage is absent', async () => {
+  it('omits tokenCount on Stop when transcript has no usage', async () => {
     await processHookEvent(makeInput({ hook_event_name: 'Stop' }));
 
     expect(fetchCalls[0].body).not.toHaveProperty('tokenCount');
