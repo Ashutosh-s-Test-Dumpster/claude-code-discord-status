@@ -273,7 +273,7 @@ case "$HOOK_EVENT" in
     TRANSCRIPT=$(normalize_path "$(echo "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)") || true
     TOKENS=0
     if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
-      TOKENS=$(jq -r 'select(.message.role == "assistant" and .message.usage != null) | (.message.usage.output_tokens // 0)' "$TRANSCRIPT" 2>/dev/null | tail -1) || TOKENS=0
+      TOKENS=$(jq -r 'select(.message.role == "assistant" and .message.usage != null) | (.message.usage.output_tokens // 0)' "$TRANSCRIPT" 2>/dev/null | awk '{s+=$1} END {print s+0}') || TOKENS=0
     fi
     SESSION_META=", \"pid\": ${PPID}, \"projectPath\": \"${CWD}\""
     if [ "${TOKENS:-0}" -gt 0 ] 2>/dev/null; then

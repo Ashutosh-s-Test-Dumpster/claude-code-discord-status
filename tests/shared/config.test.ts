@@ -41,7 +41,7 @@ describe('loadConfig', () => {
     expect(config.daemonPort).toBe(19452);
     expect(config.staleCheckInterval).toBe(30_000);
     expect(config.idleTimeout).toBe(600_000);
-    expect(config.removeTimeout).toBe(1_800_000);
+    expect(config.removeTimeout).toBe(600_000);
     expect(config.updateCheck).toBe(true);
   });
 

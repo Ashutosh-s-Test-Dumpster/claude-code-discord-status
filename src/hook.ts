@@ -80,19 +80,21 @@ async function readTokensFromTranscript(transcriptPath: string): Promise<number>
   try {
     const content = await readFile(transcriptPath, 'utf-8');
     const lines = content.split('\n');
-    for (let i = lines.length - 1; i >= 0; i--) {
-      const line = lines[i].trim();
-      if (!line) continue;
+    let total = 0;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
       try {
-        const entry = JSON.parse(line);
+        const entry = JSON.parse(trimmed);
         const usage = entry?.message?.usage;
         if (entry?.message?.role === 'assistant' && usage) {
-          return usage.output_tokens ?? 0;
+          total += usage.output_tokens ?? 0;
         }
       } catch {
         // skip malformed lines
       }
     }
+    return total;
   } catch {
     // file unreadable
   }

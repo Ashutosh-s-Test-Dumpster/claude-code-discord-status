@@ -172,7 +172,7 @@ describe('processHookEvent', () => {
     });
   });
 
-  it('uses file basename as smallImageText for Edit', async () => {
+  it('uses "Editing <filename>" as smallImageText for Edit', async () => {
     await processHookEvent(
       makeInput({
         hook_event_name: 'PreToolUse',
@@ -180,10 +180,10 @@ describe('processHookEvent', () => {
         tool_input: { file_path: '/home/user/project/src/daemon/resolver.ts' },
       }),
     );
-    expect(fetchCalls[0].body).toMatchObject({ smallImageText: 'resolver.ts' });
+    expect(fetchCalls[0].body).toMatchObject({ smallImageText: 'Editing resolver.ts' });
   });
 
-  it('uses file basename as smallImageText for Read', async () => {
+  it('uses "Reading <filename>" as smallImageText for Read', async () => {
     await processHookEvent(
       makeInput({
         hook_event_name: 'PreToolUse',
@@ -191,7 +191,7 @@ describe('processHookEvent', () => {
         tool_input: { file_path: '/home/user/project/src/hook.ts' },
       }),
     );
-    expect(fetchCalls[0].body).toMatchObject({ smallImageText: 'hook.ts' });
+    expect(fetchCalls[0].body).toMatchObject({ smallImageText: 'Reading hook.ts' });
   });
 
   it('uses command as smallImageText for Bash', async () => {
@@ -252,7 +252,7 @@ describe('processHookEvent', () => {
     });
   });
 
-  it('uses hostname as smallImageText for WebFetch', async () => {
+  it('uses "Searching <url>" as smallImageText for WebFetch', async () => {
     await processHookEvent(
       makeInput({
         hook_event_name: 'PreToolUse',
@@ -260,7 +260,9 @@ describe('processHookEvent', () => {
         tool_input: { url: 'https://discord.com/developers/docs' },
       }),
     );
-    expect(fetchCalls[0].body).toMatchObject({ smallImageText: 'discord.com' });
+    expect(fetchCalls[0].body).toMatchObject({
+      smallImageText: 'Searching https://discord.com/developers/docs',
+    });
   });
 
   it('falls back to generic iconText when tool_input is absent', async () => {
@@ -288,10 +290,28 @@ describe('processHookEvent', () => {
       makeInput({ hook_event_name: 'Stop', transcript_path: '/tmp/transcript.jsonl' }),
     );
 
-    expect(fetchCalls[0].body).toMatchObject({ details: 'Finished', tokenCount: 1500 });
+    expect(fetchCalls[0].body).toMatchObject({ details: 'Finished', tokenCount: 500 });
   });
 
-  it('includes cache tokens in tokenCount on Stop', async () => {
+  it('sums output_tokens across all turns', async () => {
+    const lines = [
+      JSON.stringify({
+        message: { role: 'assistant', usage: { input_tokens: 100, output_tokens: 200 } },
+      }),
+      JSON.stringify({
+        message: { role: 'assistant', usage: { input_tokens: 300, output_tokens: 150 } },
+      }),
+    ].join('\n');
+    vi.mocked(readFile).mockResolvedValueOnce(lines);
+
+    await processHookEvent(
+      makeInput({ hook_event_name: 'Stop', transcript_path: '/tmp/transcript.jsonl' }),
+    );
+
+    expect(fetchCalls[0].body).toMatchObject({ tokenCount: 350 });
+  });
+
+  it('ignores cache tokens in tokenCount on Stop', async () => {
     const transcript = JSON.stringify({
       message: {
         role: 'assistant',
@@ -309,7 +329,7 @@ describe('processHookEvent', () => {
       makeInput({ hook_event_name: 'Stop', transcript_path: '/tmp/transcript.jsonl' }),
     );
 
-    expect(fetchCalls[0].body).toMatchObject({ tokenCount: 500 });
+    expect(fetchCalls[0].body).toMatchObject({ tokenCount: 50 });
   });
 
   it('omits tokenCount on Stop when transcript has no usage', async () => {

@@ -66,7 +66,7 @@ describe('resolvePresence', () => {
         const session = makeSession({ smallImageKey: key });
         const activity = resolvePresence([session], genZPreset, now)!;
 
-        expect(SINGLE_SESSION_DETAILS[key]).toContain(activity.details);
+        expect(SINGLE_SESSION_DETAILS[key]).toContain(activity.smallImageText);
       }
     });
 
@@ -74,7 +74,7 @@ describe('resolvePresence', () => {
       const session = makeSession({ smallImageKey: 'unknown-key' });
       const activity = resolvePresence([session], genZPreset, now)!;
 
-      expect(SINGLE_SESSION_DETAILS_FALLBACK).toContain(activity.details);
+      expect(SINGLE_SESSION_DETAILS_FALLBACK).toContain(activity.smallImageText);
     });
 
     it('uses session smallImageKey and smallImageText', () => {
@@ -85,7 +85,7 @@ describe('resolvePresence', () => {
       const activity = resolvePresence([session], genZPreset, now)!;
 
       expect(activity.smallImageKey).toBe('thinking');
-      expect(activity.smallImageText).toBe('Thinking...');
+      expect(activity.details).toBe('Thinking...');
     });
 
     it('is not affected by the multi-session logic', () => {
@@ -257,7 +257,7 @@ describe('resolvePresence', () => {
       const activity = resolvePresence([session], customPreset, now)!;
 
       expect(activity.state).toBe('Custom state message');
-      expect(activity.details).toBe('Custom coding detail');
+      expect(activity.smallImageText).toBe('Custom coding detail');
     });
 
     it('uses fallback from preset for unknown action key', () => {
@@ -269,7 +269,7 @@ describe('resolvePresence', () => {
       const session = makeSession({ smallImageKey: 'unknown' });
       const activity = resolvePresence([session], customPreset, now)!;
 
-      expect(activity.details).toBe('Custom fallback only');
+      expect(activity.smallImageText).toBe('Custom fallback only');
     });
 
     it('uses messages from the provided preset for multi session', () => {

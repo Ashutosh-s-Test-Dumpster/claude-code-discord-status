@@ -168,6 +168,18 @@ npm run build
 npm test
 ```
 
+To build and deploy locally from source:
+
+```bash
+# macOS / Linux
+npm run unix-deploy
+
+# Windows
+npm run windows-deploy
+```
+
+These commands build, install globally, and restart the daemon in one step.
+
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
 ## License
