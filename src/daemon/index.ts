@@ -88,6 +88,18 @@ async function shutdown(): Promise<void> {
 process.on('SIGINT', () => void shutdown());
 process.on('SIGTERM', () => void shutdown());
 
+// The @xhayper/discord-rpc IPC transport socket has no error listener, so EPIPE
+// (Discord not running) surfaces as an uncaughtException and crashes the process.
+// Catch it here so the reconnect timer can do its job.
+process.on('uncaughtException', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EPIPE') {
+    console.error('Discord IPC pipe closed (Discord may not be running), will retry...');
+    return;
+  }
+  console.error('Uncaught exception:', err);
+  process.exit(1);
+});
+
 // Start
 server.listen(config.daemonPort, '127.0.0.1', () => {
   console.log(`Daemon listening on http://127.0.0.1:${config.daemonPort}`);

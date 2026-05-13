@@ -21,6 +21,12 @@ export class DiscordClient {
       this.connected = false;
       this.startReconnect();
     });
+
+    this.client.on('error', (err: Error) => {
+      console.error('Discord RPC error:', err.message);
+      this.connected = false;
+      this.startReconnect();
+    });
   }
 
   async connect(): Promise<void> {
