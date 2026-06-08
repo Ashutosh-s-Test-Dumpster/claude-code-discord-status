@@ -52,6 +52,7 @@ function buildSingleSessionActivity(
 }
 
 function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M tokens`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k tokens`;
   return `${n} tokens`;
 }
